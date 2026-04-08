@@ -4,6 +4,8 @@ import '../models/event_model.dart';
 import '../widgets/event_card.dart';
 import 'filter_screen.dart';
 
+/// SCREEN: HomeScreen - Layar utama menampilkan daftar event
+/// Fitur: Filter, pencarian, refresh otomatis
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -12,11 +14,14 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  // Service untuk get data event
   final EventService _eventService = EventService();
-  late List<Event> _allEvents;
-  List<Event> _filteredEvents = [];
-  String _selectedChipFilter = 'Semua';
-  FilterValues _advancedFilters = FilterValues();
+  
+  // Data events
+  late List<Event> _allEvents;               // Semua event
+  List<Event> _filteredEvents = [];          // Event setelah filter
+  String _selectedChipFilter = 'Semua';      // Filter chip aktif
+  FilterValues _advancedFilters = FilterValues();  // Filter lanjutan
 
   @override
   void initState() {

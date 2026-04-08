@@ -5,11 +5,14 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/event_model.dart';
 import '../screens/event_detail_screen.dart';
 
+/// WIDGET: EventCard - Kartu event untuk listing
+/// Menampilkan: poster, badge, judul, lokasi, jam, harga, & tombol
 class EventCard extends StatelessWidget {
   final Event event;
 
   const EventCard({super.key, required this.event});
 
+  /// Fungsi untuk membuka URL registrasi di browser/WhatsApp
   Future<void> _launchUrl(String url) async {
     final Uri uri = Uri.parse(url);
     if (!await launchUrl(uri)) {

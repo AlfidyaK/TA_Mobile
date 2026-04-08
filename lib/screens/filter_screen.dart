@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 
+/// MODEL: FilterValues - Menyimpan nilai filter yang dipilih user
 class FilterValues {
-  final String? location;
-  final String? eventType;
-  final String? price;
+  final String? location;                 // Lokasi/kota pilihan
+  final String? eventType;                // Tipe event pilihan
+  final String? price;                    // Range harga pilihan
 
   FilterValues({this.location, this.eventType, this.price});
 }
 
+/// SCREEN: FilterScreen - Layar pengaturan filter event lanjutan
+/// Opsi: Lokasi, Tipe Event, Range Harga
 class FilterScreen extends StatefulWidget {
-  final FilterValues initialFilters;
+  final FilterValues initialFilters;      // Filter awal
 
   const FilterScreen({super.key, required this.initialFilters});
 
@@ -18,9 +21,10 @@ class FilterScreen extends StatefulWidget {
 }
 
 class _FilterScreenState extends State<FilterScreen> {
-  String? _selectedLocation;
-  String? _selectedEventType;
-  String? _selectedPrice;
+  // Selected filter values
+  String? _selectedLocation;              // Lokasi dipilih
+  String? _selectedEventType;             // Tipe event dipilih
+  String? _selectedPrice;                 // Harga dipilih
 
   @override
   void initState() {

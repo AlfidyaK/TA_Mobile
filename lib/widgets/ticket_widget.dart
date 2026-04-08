@@ -3,13 +3,16 @@ import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../models/event_model.dart';
 
+/// WIDGET: TicketWidget - Kartu tiket digital event
+/// Menampilkan: booking ID, QR code, dan info event
 class TicketWidget extends StatelessWidget {
-  final Event event;
+  final Event event;                      // Event untuk tiket
 
   const TicketWidget({super.key, required this.event});
 
   @override
   Widget build(BuildContext context) {
+    // Generate booking ID unik
     final safeId = event.id.length >= 4
         ? event.id.substring(0, 4)
         : event.id.padLeft(4, '0');

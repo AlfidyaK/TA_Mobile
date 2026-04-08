@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+/// WIDGET: ThemeBackground - Background gradient sesuai theme
+/// Menampilkan gradien terang di light mode, gelap di dark mode
 class ThemeBackground extends StatelessWidget {
   final Widget child;
 
@@ -9,6 +11,7 @@ class ThemeBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
+    // Gradient: Putih-Pink (light) atau Gelap-Gelap (dark)
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -24,10 +27,12 @@ class ThemeBackground extends StatelessWidget {
   }
 }
 
+/// WIDGET: ThemedButton - Tombol dengan styling dinamis
+/// Menampilkan button normal atau disabled sesuai state
 class ThemedButton extends StatelessWidget {
   final VoidCallback onPressed;
   final Widget child;
-  final bool isCompleted;
+  final bool isCompleted;                 // Flag untuk disable button
 
   const ThemedButton({
     super.key, 

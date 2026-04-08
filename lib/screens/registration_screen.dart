@@ -2,8 +2,10 @@ import 'package:eventgo/services/event_service.dart';
 import 'package:flutter/material.dart';
 import '../models/event_model.dart';
 
+/// SCREEN: RegistrationScreen - Layar pendaftaran user ke event
+/// Mengumpulkan data user dan menyimpan ke registered events
 class RegistrationScreen extends StatefulWidget {
-  final Event event;
+  final Event event;                      // Event yang didaftar
 
   const RegistrationScreen({super.key, required this.event});
 
@@ -12,9 +14,9 @@ class RegistrationScreen extends StatefulWidget {
 }
 
 class _RegistrationScreenState extends State<RegistrationScreen> {
-  final _eventService = EventService();
-  final _formKey = GlobalKey<FormState>();
-  String _name = '';
+  final _eventService = EventService();   // Service untuk register event
+  final _formKey = GlobalKey<FormState>(); // Form validation
+  String _name = '';                      // Nama pemberi daftar
 
   void _submitRegistration() {
     if (_formKey.currentState!.validate()) {

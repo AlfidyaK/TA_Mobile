@@ -6,8 +6,10 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 
+/// SCREEN: AddEventScreen - Layar membuat event baru
+/// Fitur: Upload poster, pilih kategori, tanggal, lokasi, harga, & link registrasi
 class AddEventScreen extends StatefulWidget {
-  final VoidCallback? onEventCreated;
+  final VoidCallback? onEventCreated;     // Callback ketika event dibikin
 
   const AddEventScreen({super.key, this.onEventCreated});
 
@@ -16,18 +18,20 @@ class AddEventScreen extends StatefulWidget {
 }
 
 class _AddEventScreenState extends State<AddEventScreen> {
-  final _eventService = EventService();
-  final _formKey = GlobalKey<FormState>();
+  final _eventService = EventService();   // Service untuk buat event
+  final _formKey = GlobalKey<FormState>(); // Form validation
+  
+  // Form field data
   String _title = '';
   EventCategory _category = EventCategory.kpop;
   EventType _type = EventType.noraebang;
-  File? _posterImage;
-  Uint8List? _posterImageBytes;
+  File? _posterImage;                     // Poster untuk mobile
+  Uint8List? _posterImageBytes;           // Poster untuk web
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
   String _location = '';
   String _venue = '';
-  bool _isFree = true;
+  bool _isFree = true;                    // Toggle gratis/berbayar
   double? _price;
   String? _registrationLink;
 

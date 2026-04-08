@@ -4,8 +4,10 @@ import 'package:intl/intl.dart';
 import '../models/event_model.dart';
 import 'registration_screen.dart';
 
+/// SCREEN: EventDetailScreen - Layar detail lengkap event
+/// Menampilkan: poster besar, info lengkap, dan tombol daftar
 class EventDetailScreen extends StatefulWidget {
-  final Event event;
+  final Event event;                      // Event yang ditampilkan
 
   const EventDetailScreen({super.key, required this.event});
 

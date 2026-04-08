@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'register_screen.dart';
 
+/// SCREEN: LoginScreen - Layar autentikasi user
+/// Menampilkan form login dengan validation dummy credentials
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -9,12 +11,15 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  // Controller untuk input email & password
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isLoading = false;
-  bool _isPasswordVisible = false;
+  
+  // State variables
+  bool _isLoading = false;                    // Indikator proses login
+  bool _isPasswordVisible = false;            // Visibility toggle password
 
-  // Dummy credentials
+  // Dummy credentials (placeholder)
   static const String _dummyEmail = 'user@eventgo.com';
   static const String _dummyPassword = 'password123';
 

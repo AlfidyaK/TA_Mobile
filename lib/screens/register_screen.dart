@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+/// SCREEN: RegisterScreen - Layar pendaftaran user baru
+/// Validasi: email, password match, dan agreement terms
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -8,14 +10,17 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  // Controller untuk setiap input field
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  bool _isLoading = false;
-  bool _isPasswordVisible = false;
-  bool _isConfirmPasswordVisible = false;
-  bool _agreeToTerms = false;
+  
+  // State variables
+  bool _isLoading = false;                     // Indikator proses register
+  bool _isPasswordVisible = false;             // Visibility toggle password
+  bool _isConfirmPasswordVisible = false;      // Visibility toggle confirm password
+  bool _agreeToTerms = false;                  // Checkbox agreement
 
   @override
   void dispose() {

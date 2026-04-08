@@ -1,9 +1,10 @@
 import '../models/event_model.dart';
 
-/// A singleton service to manage event data across the app.
-/// This acts as a centralized in-memory database.
+/// SERVICE: EventService - Mengelola data event aplikasi
+/// Menggunakan Singleton pattern untuk akses global dari seluruh aplikasi
+/// Menyimpan event dalam memory (bukan database)
 class EventService {
-  // Singleton pattern setup
+  // Singleton pattern: Memastikan hanya ada 1 instance EventService
   static final EventService _instance = EventService._internal();
   factory EventService() {
     return _instance;
@@ -81,37 +82,40 @@ class EventService {
     ),
   ];
 
+  // Data events yang terdaftar
   final List<Event> _registeredEvents = [];
-  final String _currentUserId = 'currentUser'; // Placeholder for logged-in user ID
+  final String _currentUserId = 'currentUser';    // Current user ID
 
-  // --- PUBLIC API ---
+  // ============ PUBLIC API ============
 
-  /// Get current user ID
+  /// Getter: Mendapatkan ID user saat ini
   String get currentUserId => _currentUserId;
 
-  /// Returns a copy of all available events.
+  /// Method: Ambil SEMUA events yang tersedia
   List<Event> getAllEvents() {
     return List<Event>.from(_allEvents);
   }
 
-  /// Adds a new event to the master list.
+  /// Method: BUAT event baru
+  /// Event baru ditambahkan ke paling awal (index 0)
   void createEvent(Event event) {
     _allEvents.insert(0, event);
   }
 
-  /// Returns events created by the current user.
+  /// Method: Ambil EVENT yang dibuat oleh user saat ini
   List<Event> getCreatedEvents() {
     return _allEvents.where((event) => event.userId == _currentUserId).toList();
   }
 
-  /// Adds an event to the user's registered list.
+  /// Method: DAFTAR ke event (simpan ke registered events)
+  /// Cegah duplikat dengan cek ID
   void registerForEvent(Event event) {
     if (!_registeredEvents.any((e) => e.id == event.id)) {
       _registeredEvents.add(event);
     }
   }
 
-  /// Returns events the current user has registered for.
+  /// Method: Ambil TIKET user (events yang user daftar)
   List<Event> getRegisteredEvents() {
     return List<Event>.from(_registeredEvents);
   }
