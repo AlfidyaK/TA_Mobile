@@ -7,6 +7,24 @@ enum EventCategory { kpop, jepang, lainnya }
 /// Tipe/jenis event (Karaoke, Nobar, Photobooth, dll)
 enum EventType { noraebang, nobar, photobooth, birthdayEvent, konser, lainnya }
 
+class Registration {
+  final String eventId;
+  final String userName;
+  final String email;
+  final String phone;
+  final String? paymentProofPath; // path ke bukti pembayaran kalau ada
+  final DateTime registeredAt;
+
+  Registration({
+    required this.eventId,
+    required this.userName,
+    required this.email,
+    required this.phone,
+    this.paymentProofPath,
+    required this.registeredAt,
+  });
+}
+
 /// Model Event: Struktur data untuk setiap event
 /// Menyimpan informasi lengkap event dari ID hingga harga tiket
 class Event {
@@ -23,6 +41,7 @@ class Event {
   final String? registrationLink;       // Link daftar (opsional)
   final String userId;                  // ID user pembuat event
   final bool isCompleted;               // Apakah event sudah selesai
+  final String? bankAccount;            // Nomor rekening (opsional, untuk event berbayar)
 
   Event({
     required this.id,
@@ -38,5 +57,6 @@ class Event {
     this.registrationLink,
     required this.userId,
     this.isCompleted = false,
+    this.bankAccount,
   });
 }

@@ -33,6 +33,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
   String _venue = '';
   bool _isFree = true;                    // Toggle gratis/berbayar
   double? _price;
+  String? _bankAccount;
   String? _registrationLink;
 
   Future<void> _pickImage() async {
@@ -331,7 +332,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              if (!_isFree)
+              if (!_isFree) ...[
                 Padding(
                   padding: const EdgeInsets.only(bottom: 20.0),
                   child: TextFormField(
@@ -352,16 +353,36 @@ class _AddEventScreenState extends State<AddEventScreen> {
                     onSaved: (value) => _price = double.tryParse(value ?? '0'),
                   ),
                 ),
-              TextFormField(
-                decoration: InputDecoration(
-                  labelText: 'Link Registrasi (Opsional)',
-                  labelStyle: const TextStyle(color: Color(0xFF6B677A)),
-                  prefixIcon: const Icon(Icons.link_rounded, color: Color(0xFF9D4EDD)),
-                  filled: true,
-                  fillColor: Colors.white,
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 20.0),
+                  child: TextFormField(
+                    decoration: InputDecoration(
+                      labelText: 'Nomor Rekening (namaBank)',
+                      labelStyle: const TextStyle(color: Color(0xFF6B677A)),
+                      prefixIcon: const Icon(Icons.account_balance_wallet_rounded, color: Color(0xFF00BFA5)),
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
+                    validator: (value) {
+                      if (!_isFree && (value == null || value.isEmpty)) {
+                        return 'Nomor rekening wajib diisi agar mudah bayar';
+                      }
+                      return null;
+                    },
+                    onSaved: (value) => _bankAccount = value,
+                  ),
                 ),
-                onSaved: (value) => _registrationLink = value,
-              ),
+              ],
+              // TextFormField(
+              //   decoration: InputDecoration(
+              //     labelText: 'Link Registrasi (Opsional)',
+              //     labelStyle: const TextStyle(color: Color(0xFF6B677A)),
+              //     prefixIcon: const Icon(Icons.link_rounded, color: Color(0xFF9D4EDD)),
+              //     filled: true,
+              //     fillColor: Colors.white,
+              //   ),
+              //   onSaved: (value) => _registrationLink = value,
+              // ),
               const SizedBox(height: 32),
               SizedBox(
                 height: 56,
@@ -404,6 +425,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
                         venue: _venue,
                         isFree: _isFree,
                         price: _isFree ? 0 : _price,
+                        bankAccount: _isFree ? null : _bankAccount,
                         registrationLink: _registrationLink,
                         userId: _eventService.currentUserId,
                         isCompleted: false,

@@ -17,13 +17,22 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   final _eventService = EventService();   // Service untuk register event
   final _formKey = GlobalKey<FormState>(); // Form validation
   String _name = '';                      // Nama pemberi daftar
+  String _email = '';
+  String _phone = '';
+  String? _paymentProofPath;              // TODO: tambahkan path file 
 
   void _submitRegistration() {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
       
-      // Use the service to register the event
-      _eventService.registerForEvent(widget.event);
+      // Use the service to register the event with details
+      _eventService.registerForEvent(
+        widget.event,
+        name: _name,
+        email: _email,
+        phone: _phone,
+        paymentProofPath: _paymentProofPath,
+      );
 
       // Show a confirmation dialog
       showDialog(
@@ -106,7 +115,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   return null;
                 },
                 onSaved: (value) {
-                  // Email value not used currently
+                  _email = value!;
                 },
               ),
               const SizedBox(height: 16),
@@ -124,9 +133,40 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   return null;
                 },
                 onSaved: (value) {
-                  // Phone number value not used currently
+                  _phone = value!;
                 },
               ),
+              if (!widget.event.isFree) ...[
+                const SizedBox(height: 16),
+                const Text('Upload Bukti Pembayaran', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: () {
+                    // TODO: Implement image/file picker logic here
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Fitur upload bukti pembayaran belum siap')),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade400),
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.grey.shade50,
+                    ),
+                    child: const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.upload_file, color: Colors.blue, size: 40),
+                          SizedBox(height: 8),
+                          Text('Pilih File / Foto', style: TextStyle(color: Colors.blue)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,

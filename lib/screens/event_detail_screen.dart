@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/event_model.dart';
 import 'registration_screen.dart';
+import 'view_registrants_screen.dart';
+import '../services/event_service.dart';
 
 /// SCREEN: EventDetailScreen - Layar detail lengkap event
 /// Menampilkan: poster besar, info lengkap, dan tombol daftar
@@ -21,6 +23,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final formattedDate = DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(widget.event.dateTime);
     final formattedTime = DateFormat('HH:mm').format(widget.event.dateTime);
     final bool isCompleted = widget.event.dateTime.isBefore(DateTime.now());
+    final eventService = EventService();
+    final bool isMyEvent = widget.event.userId == eventService.currentUserId;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -33,10 +37,14 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             elevation: 0,
             iconTheme: const IconThemeData(color: Colors.white),
             flexibleSpace: FlexibleSpaceBar(
+              centerTitle: false,
+              titlePadding: const EdgeInsets.only(left: 48.0, right: 16.0, bottom: 16.0), // give space for back button on left
               title: Text(
                 widget.event.title,
                 style: const TextStyle(
                   fontSize: 16.0,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
                   shadows: [
                     Shadow(
                       blurRadius: 8.0,
@@ -45,26 +53,46 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     ),
                   ],
                 ),
-                maxLines: 1,
+                maxLines: 2, // Allow up to 2 lines
                 overflow: TextOverflow.ellipsis,
               ),
-              background: Hero(
-                tag: widget.event.id, // Use a unique tag for the Hero animation
-                child: widget.event.posterUrl.startsWith('assets/')
-                    ? Image.asset(
-                        widget.event.posterUrl,
-                        fit: BoxFit.cover,
-                      )
-                    : CachedNetworkImage(
-                        imageUrl: widget.event.posterUrl,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => const Center(
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF9D4EDD)),
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Hero(
+                    tag: widget.event.id, // Use a unique tag for the Hero animation
+                    child: widget.event.posterUrl.startsWith('assets/')
+                        ? Image.asset(
+                            widget.event.posterUrl,
+                            fit: BoxFit.cover,
+                          )
+                        : CachedNetworkImage(
+                            imageUrl: widget.event.posterUrl,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => const Center(
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF9D4EDD)),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => const Icon(Icons.error),
                           ),
-                        ),
-                        errorWidget: (context, url, error) => const Icon(Icons.error),
+                  ),
+                  // Gradient shadow supaya judul lebih mudah dibaca meskipun poster terang
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.8),
+                        ],
+                        stops: const [0.0, 0.6, 1.0],
                       ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -86,6 +114,14 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     widget.event.isFree ? 'Gratis' : 'Rp ${NumberFormat.decimalPattern('id_ID').format(widget.event.price)}',
                     color: widget.event.isFree ? const Color(0xFF00BFA5) : const Color(0xFFE57373),
                   ),
+                  if (!widget.event.isFree && widget.event.bankAccount != null) ...[
+                    const SizedBox(height: 16),
+                    _buildDetailRow(
+                      Icons.account_balance_wallet,
+                      'Nomor Rekening (namaBank)',
+                      widget.event.bankAccount!,
+                    ),
+                  ],
                   const SizedBox(height: 32),
                 ],
               ),
@@ -98,14 +134,24 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               padding: const EdgeInsets.all(16.0),
               child: ElevatedButton(
                 onPressed: () async {
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => RegistrationScreen(event: widget.event),
-                    ),
-                  );
-                  if (result == true) {
-                    Navigator.pop(context, true);
+                  if (isMyEvent) {
+                    // Navigate to check registrants list 
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ViewRegistrantsScreen(event: widget.event),
+                      ),
+                    );
+                  } else {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => RegistrationScreen(event: widget.event),
+                      ),
+                    );
+                    if (result == true) {
+                      Navigator.pop(context, true);
+                    }
                   }
                 },
                 style: ElevatedButton.styleFrom(
@@ -114,7 +160,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   
                   textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                child: const Text('Registrasi Sekarang'),
+                child: Text(isMyEvent ? 'Lihat Pendaftar' : 'Registrasi Sekarang'),
               ),
             )
           : null,

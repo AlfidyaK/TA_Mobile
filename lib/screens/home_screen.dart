@@ -200,10 +200,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             const Padding(
               padding: EdgeInsets.fromLTRB(20, 24, 20, 8),
               child: Text(
-                'Temukan event seru di sekitarmu! ✨',
+                'Temukan event seru di sekitarmu',
                 style: TextStyle(
                   fontSize: 18,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w600,
                 color: Color(0xFF2F2F2F),
                 letterSpacing: -0.5,
               ),

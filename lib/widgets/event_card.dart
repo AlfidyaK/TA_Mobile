@@ -114,7 +114,7 @@ class EventCard extends StatelessWidget {
                       gradient: Theme.of(context).brightness == Brightness.dark
                           ? null
                           : const LinearGradient(
-                              colors: [Color.fromARGB(255, 235, 43, 200), Color.fromARGB(255, 242, 156, 193), Color.fromARGB(255, 255, 255, 255)],
+                              colors: [Color.fromARGB(255, 172, 2, 140), Color.fromARGB(255, 225, 114, 162), Color.fromARGB(255, 235, 197, 226)],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
