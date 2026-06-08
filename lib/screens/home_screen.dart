@@ -4,8 +4,6 @@ import '../models/event_model.dart';
 import '../widgets/event_card.dart';
 import 'filter_screen.dart';
 
-/// SCREEN: HomeScreen - Layar utama menampilkan daftar event
-/// Fitur: Filter, pencarian, refresh otomatis
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -14,14 +12,12 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
-  // Service untuk get data event
   final EventService _eventService = EventService();
-  
-  // Data events
-  late List<Event> _allEvents;               // Semua event
-  List<Event> _filteredEvents = [];          // Event setelah filter
-  String _selectedChipFilter = 'Semua';      // Filter chip aktif
-  FilterValues _advancedFilters = FilterValues();  // Filter lanjutan
+
+  late List<Event> _allEvents;
+  List<Event> _filteredEvents = [];
+  String _selectedChipFilter = 'Semua';
+  FilterValues _advancedFilters = FilterValues();
 
   @override
   void initState() {
@@ -33,9 +29,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _reloadEvents();
-    }
+    if (state == AppLifecycleState.resumed) _reloadEvents();
   }
 
   void _reloadEvents() {
@@ -45,10 +39,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
   }
 
-  // Public method to reload events (called from MainScreen)
-  void reloadEvents() {
-    _reloadEvents();
-  }
+  void reloadEvents() => _reloadEvents();
 
   @override
   void dispose() {
@@ -61,7 +52,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     setState(() {
       List<Event> tempEvents = List.from(_allEvents);
 
-      // Chip filters
       switch (_selectedChipFilter) {
         case 'K-Pop':
           tempEvents = tempEvents.where((e) => e.category == EventCategory.kpop).toList();
@@ -74,12 +64,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
           break;
         case 'Terbaru':
-          tempEvents = tempEvents.where((e) => e.dateTime.isBefore(now) || e.dateTime.isAtSameMomentAs(now)).toList()
+          tempEvents = tempEvents
+              .where((e) => e.dateTime.isBefore(now) || e.dateTime.isAtSameMomentAs(now))
+              .toList()
             ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
           break;
       }
 
-      // Advanced filters
       if (_advancedFilters.location != null) {
         final locFilter = _advancedFilters.location!.toLowerCase();
         tempEvents = tempEvents.where((e) {
@@ -121,20 +112,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       }
 
-      // Sort events so that uncompleted are on top
       tempEvents.sort((a, b) {
         final now = DateTime.now();
         final aCompleted = a.dateTime.isBefore(now);
         final bCompleted = b.dateTime.isBefore(now);
-        
         if (aCompleted && !bCompleted) return 1;
         if (!aCompleted && bCompleted) return -1;
-        
-        if (_selectedChipFilter == 'Terbaru') {
-          return b.dateTime.compareTo(a.dateTime);
-        } else {
-          return a.dateTime.compareTo(b.dateTime);
-        }
+        return _selectedChipFilter == 'Terbaru'
+            ? b.dateTime.compareTo(a.dateTime)
+            : a.dateTime.compareTo(b.dateTime);
       });
 
       _filteredEvents = tempEvents;
@@ -148,7 +134,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         builder: (context) => FilterScreen(initialFilters: _advancedFilters),
       ),
     );
-
     if (newFilters != null) {
       setState(() {
         _advancedFilters = newFilters;
@@ -161,24 +146,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
+    /// FIX: Ambil warna dari theme agar otomatis menyesuaikan mode
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0A0A10) : Colors.white,
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        title: const Text('eventGO', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5)),
+        title: Text(
+          'eventGO',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 24,
+            letterSpacing: -0.5,
+            /// FIX: Warna teks AppBar mengikuti foregroundColor dari AppBarTheme
+            color: isDark ? Colors.white : const Color(0xFF1C1C1E),
+          ),
+        ),
         elevation: 0,
-        backgroundColor: isDark ? const Color(0xFF0A0A10) : Colors.white,
-        foregroundColor: isDark ? Colors.white : Colors.black,
+        /// FIX: Warna AppBar dari theme, bukan hardcode
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
         actions: [
           Container(
             margin: const EdgeInsets.only(right: 16),
             decoration: BoxDecoration(
-              color: isDark 
-                  ? const Color(0xFF1A1A22)
+              color: isDark
+                  ? const Color(0xFF2D1B4E)
                   : const Color(0xFFF0E6FF),
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              icon: Icon(Icons.tune_rounded, color: isDark ? Colors.white : const Color(0xFF9D4EDD)),
+              icon: Icon(
+                Icons.tune_rounded,
+                color: colorScheme.primary,
+              ),
               onPressed: _openFilterScreen,
             ),
           ),
@@ -189,7 +191,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: isDark 
+            colors: isDark
                 ? const [Color(0xFF0A0A10), Color(0xFF1A1A22)]
                 : const [Color(0xFFFAFAFC), Color(0xFFFFF0F5)],
           ),
@@ -197,45 +199,52 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 24, 20, 8),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
               child: Text(
                 'Temukan event seru di sekitarmu',
-                style: TextStyle(
+                style: textTheme.titleMedium?.copyWith(
                   fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF2F2F2F),
-                letterSpacing: -0.5,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.5,
+                  /// FIX: Warna teks dari theme — tidak lagi hardcode 0xFF2F2F2F
+                  /// yang tidak kelihatan di dark mode
+                  color: colorScheme.onSurface,
+                ),
               ),
             ),
-          ),
-          _buildFilterChips(),
-          Expanded(
-            child: _filteredEvents.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.search_off_rounded, size: 80, color: Colors.grey.shade400),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Yah, tidak ada event\nyang cocok 😢',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 18, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
-                        )
-                      ],
+            _buildFilterChips(),
+            Expanded(
+              child: _filteredEvents.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.search_off_rounded,
+                              size: 80, color: Colors.grey.shade400),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Yah, tidak ada event\nyang cocok 😢',
+                            textAlign: TextAlign.center,
+                            style: textTheme.titleMedium?.copyWith(
+                              fontSize: 18,
+                              color: Colors.grey.shade600,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      itemCount: _filteredEvents.length,
+                      itemBuilder: (context, index) {
+                        return EventCard(event: _filteredEvents[index]);
+                      },
                     ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    itemCount: _filteredEvents.length,
-                    itemBuilder: (context, index) {
-                      return EventCard(event: _filteredEvents[index]);
-                    },
-                  ),
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -243,7 +252,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildFilterChips() {
     final filters = ['Semua', 'K-Pop', 'Musik', 'Segera', 'Terbaru'];
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       height: 70,
       margin: const EdgeInsets.only(bottom: 8),
@@ -259,25 +269,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 filter,
                 style: TextStyle(
                   fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                  color: isSelected ? Colors.white : const Color(0xFF6B677A),
+                  /// FIX: Warna label chip unselected dari colorScheme
+                  color: isSelected
+                      ? Colors.white
+                      : colorScheme.onSurface.withOpacity(0.7),
                   fontSize: 14,
                   letterSpacing: 0.5,
                 ),
               ),
               selected: isSelected,
               showCheckmark: false,
-              backgroundColor: isDark ? const Color(0xFF1A1A22) : const Color(0xFFFFF0F5),
-              selectedColor: const Color(0xFF9D4EDD),
+              backgroundColor: isDark
+                  ? const Color(0xFF2D1B4E)
+                  : const Color(0xFFFFF0F5),
+              selectedColor: colorScheme.primary,
               elevation: isSelected ? 3 : 0,
               pressElevation: 0,
-              shadowColor: const Color(0xFF9D4EDD).withOpacity(0.4),
+              shadowColor: colorScheme.primary.withOpacity(0.4),
               side: BorderSide(
-                color: isSelected 
-                    ? Colors.transparent 
-                    : (isDark ? const Color(0xFF6B677A) : const Color(0xFFE8D5F2)),
+                color: isSelected
+                    ? Colors.transparent
+                    : (isDark
+                        ? const Color(0xFF6B677A)
+                        : const Color(0xFFE8D5F2)),
               ),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               onSelected: (selected) {
                 if (selected) {
                   setState(() {

@@ -3,11 +3,9 @@ import 'package:eventgo/widgets/ticket_widget.dart';
 import 'package:flutter/material.dart';
 import '../models/event_model.dart';
 import '../widgets/event_card.dart';
+import '../widgets/theme_switcher.dart';
 import 'login_screen.dart';
 
-/// SCREEN: ProfileScreen - Layar profil user & event yang dibuat/didaftar
-/// Tab 1: Event yang dibuat | Tab 2: Tiket yang dimiliki
-/// Fitur: Dark mode toggle, logout, edit profil
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -15,18 +13,17 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+class _ProfileScreenState extends State<ProfileScreen>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final EventService _eventService = EventService();
-  late TabController _tabController;    // Controller untuk 2 tab
+  late TabController _tabController;
 
-  // User info (dummy data)
   final String _userName = 'Pengguna EventGo';
   final String _userEmail = 'user@eventgo.com';
   final String _userAvatarUrl = 'https://i.pravatar.cc/150?u=a042581f4e29026704d';
-  
-  // Data events
-  late List<Event> _createdEvents;       // Event yang user buat
-  late List<Event> _registeredEvents;    // Event yang user daftar
+
+  late List<Event> _createdEvents;
+  late List<Event> _registeredEvents;
 
   @override
   void initState() {
@@ -38,17 +35,12 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   void _onTabChanged() {
-    if (_tabController.index == 1) {
-      // Reload data when switching to "Tiket Saya" tab
-      _loadData();
-    }
+    if (_tabController.index == 1) _loadData();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _loadData();
-    }
+    if (state == AppLifecycleState.resumed) _loadData();
   }
 
   void _loadData() {
@@ -58,69 +50,58 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     });
   }
 
-  // Public method to reload data (called from MainScreen)
-  void reloadData() {
-    _loadData();
-  }
+  void reloadData() => _loadData();
 
   void _handleLogout() {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Logout'),
-          content: const Text('Apakah Anda yakin ingin keluar dari aplikasi?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Batal'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                // Navigate to LoginScreen and remove all previous routes
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                  (route) => false,
-                );
-              },
-              child: const Text(
-                'Logout',
-                style: TextStyle(color: Colors.red),
-              ),
-            ),
-          ],
-        );
-      },
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Apakah Anda yakin ingin keluar dari aplikasi?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                (route) => false,
+              );
+            },
+            child: const Text('Logout', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
     );
   }
 
-  /// Fungsi untuk menampilkan dialog pengaturan dark mode
+  /// FIX: Dialog tema sekarang menampilkan ThemeSwitcher yang fungsional
+  /// bukan lagi pesan statis "tema mengikuti sistem"
   void _showThemeDialog() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Pengaturan Tema'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Tema saat ini: ${isDark ? "Dark Mode" : "Light Mode"}'),
-              const SizedBox(height: 20),
-              const Text('Catatan: Tema mengikuti pengaturan sistem device Anda'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Tutup'),
-            ),
+      builder: (context) => AlertDialog(
+        title: const Text('Pengaturan Tema'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Pilih tampilan yang Anda inginkan:'),
+            const SizedBox(height: 20),
+            /// Widget ThemeSwitcher langsung di dalam dialog
+            const ThemeSwitcher(),
           ],
-        );
-      },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Selesai'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -133,21 +114,17 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Profil'),
         elevation: 0,
         actions: [
-          // Button untuk dark mode settings
-          IconButton(
-            icon: Theme.of(context).brightness == Brightness.dark
-                ? const Icon(Icons.light_mode)
-                : const Icon(Icons.dark_mode),
-            onPressed: _showThemeDialog,
-            tooltip: 'Pengaturan Tema',
-          ),
-          // Button logout
+          /// ThemeToggleButton sudah fungsional (toggle light/dark)
+          const ThemeToggleButton(),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _handleLogout,
@@ -160,7 +137,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: Theme.of(context).brightness == Brightness.dark
+            colors: isDark
                 ? const [Color(0xFF0A0A10), Color(0xFF141420)]
                 : const [Color(0xFFFCFAFF), Color(0xFFF5E6FF)],
           ),
@@ -174,34 +151,39 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 delegate: _SliverTabBarDelegate(
                   TabBar(
                     controller: _tabController,
+                    indicatorColor: colorScheme.primary,
+                    labelColor: colorScheme.primary,
+                    /// FIX: unselectedLabelColor pakai onSurface agar kontras
+                    /// di dark mode (tidak lagi gelap di atas gelap)
+                    unselectedLabelColor: colorScheme.onSurface.withOpacity(0.5),
                     tabs: const [
                       Tab(text: 'Event Dibuat'),
                       Tab(text: 'Tiket Saya'),
                     ],
                   ),
+                ),
+                pinned: true,
               ),
-              pinned: true,
-            ),
-          ];
-        },
-        body: TabBarView(
-          controller: _tabController,
-          children: [
-            _buildEventList(_createdEvents),
-            _buildTicketList(_registeredEvents),
-          ],
+            ];
+          },
+          body: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildEventList(_createdEvents),
+              _buildTicketList(_registeredEvents),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
 
   Widget _buildProfileHeader() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Column(
       children: [
-        // User profile info
         Padding(
           padding: const EdgeInsets.all(20.0),
           child: Row(
@@ -217,53 +199,36 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   children: [
                     Text(
                       _userName,
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        /// FIX: Warna nama user dari colorScheme
+                        color: colorScheme.onSurface,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       _userEmail,
-                      style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                      style: TextStyle(
+                        fontSize: 16,
+                        /// FIX: Warna email dari onSurface dengan opacity
+                        /// agar tetap terbaca di light maupun dark mode
+                        color: colorScheme.onSurface.withOpacity(0.6),
+                      ),
                     ),
                   ],
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.edit),
+                icon: Icon(Icons.edit, color: colorScheme.onSurface),
                 onPressed: () {
-                  // TODO: Implement edit profile logic
-                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Fitur edit profil belum diimplementasikan.')),
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Fitur edit profil belum diimplementasikan.')),
                   );
                 },
               ),
             ],
-          ),
-        ),
-        // Settings section - Dark mode toggle
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-          child: Container(
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1A1A22) : const Color(0xFFFFF0F5),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isDark ? Colors.grey[800]! : const Color(0xFFE8D5F2),
-              ),
-            ),
-            child: ListTile(
-              leading: Icon(
-                isDark ? Icons.dark_mode : Icons.light_mode,
-                color: const Color(0xFF9D4EDD),
-              ),
-              title: const Text('Tema Tampilan'),
-              subtitle: Text(isDark ? 'Dark Mode' : 'Light Mode'),
-              trailing: Icon(
-                Icons.arrow_forward_ios,
-                size: 16,
-                color: Colors.grey[500],
-              ),
-              onTap: _showThemeDialog,
-            ),
           ),
         ),
       ],
@@ -271,6 +236,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   Widget _buildStats() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
       child: Row(
@@ -284,55 +251,71 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   Widget _buildStatItem(String label, String value) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Column(
       children: [
         Text(
           value,
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            /// FIX: Angka stat pakai colorScheme.onSurface
+            color: colorScheme.onSurface,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
           label,
-          style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+          style: TextStyle(
+            fontSize: 14,
+            /// FIX: Label stat pakai opacity, bukan Colors.grey[600] hardcode
+            color: colorScheme.onSurface.withOpacity(0.6),
+          ),
         ),
       ],
     );
   }
 
   Widget _buildEventList(List<Event> events) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     if (events.isEmpty) {
-      return const Center(
-        child: Text('Tidak ada event untuk ditampilkan.'),
+      return Center(
+        child: Text(
+          'Tidak ada event untuk ditampilkan.',
+          style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+        ),
       );
     }
     return ListView.builder(
       padding: const EdgeInsets.all(8.0),
       itemCount: events.length,
-      itemBuilder: (context, index) {
-        return EventCard(event: events[index]);
-      },
+      itemBuilder: (context, index) => EventCard(event: events[index]),
     );
   }
 
   Widget _buildTicketList(List<Event> events) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     if (events.isEmpty) {
-      return const Center(
-        child: Text('Anda belum memiliki tiket.'),
+      return Center(
+        child: Text(
+          'Anda belum memiliki tiket.',
+          style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+        ),
       );
     }
     return ListView.builder(
       padding: const EdgeInsets.all(8.0),
       itemCount: events.length,
-      itemBuilder: (context, index) {
-        return TicketWidget(event: events[index]);
-      },
+      itemBuilder: (context, index) => TicketWidget(event: events[index]),
     );
   }
 }
 
 class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
   _SliverTabBarDelegate(this._tabBar);
-
   final TabBar _tabBar;
 
   @override
@@ -349,7 +332,5 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
   }
 
   @override
-  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
-    return false;
-  }
+  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) => false;
 }

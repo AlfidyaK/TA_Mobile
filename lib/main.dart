@@ -1,76 +1,87 @@
-// Import library yang diperlukan
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:provider/provider.dart';
+import 'providers/theme_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/add_event_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/login_screen.dart';
 
-/// Fungsi main: Entry point aplikasi
-/// - Memastikan Flutter binding sudah initialized
-/// - Menginisialisasi format tanggal ke bahasa Indonesia
-/// - Menjalankan aplikasi
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('id_ID', null);
-  runApp(const MyApp());
+  runApp(
+    /// Wrap root dengan ChangeNotifierProvider agar semua widget
+    /// di bawah bisa akses ThemeProvider via context.watch/read
+    ChangeNotifierProvider(
+      create: (_) => ThemeProvider(),
+      child: const MyApp(),
+    ),
+  );
 }
 
-/// Kelas MyApp: Root widget aplikasi
-/// Mengatur tema global dan screen awal aplikasi
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    /// Dengarkan perubahan ThemeProvider → rebuild MaterialApp
+    /// sehingga themeMode berubah tanpa restart aplikasi
+    final themeProvider = context.watch<ThemeProvider>();
+
     return MaterialApp(
       title: 'EventGo',
       debugShowCheckedModeBanner: false,
-      
-      /// TEMA LIGHT MODE (Gelap ke Terang)
-      /// Menggunakan palet warna vibrant dengan primary ungu (#9D4EDD)
+
+      // ─── LIGHT THEME ────────────────────────────────────────────
       theme: ThemeData(
         brightness: Brightness.light,
         fontFamily: 'Poppins',
         primaryColor: const Color(0xFF9D4EDD),
         scaffoldBackgroundColor: const Color(0xFFFAFAFC),
-        
-        /// ColorScheme: Mendefinisikan palet warna utama
-        /// - Primary: Ungu vibrant (#9D4EDD)
-        /// - Secondary: Magenta (#FF006E)
-        /// - Tertiary: Cyan (#00D9FF)
+
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF9D4EDD),
           primary: const Color(0xFF9D4EDD),
           secondary: const Color(0xFFFF006E),
           tertiary: const Color(0xFF00D9FF),
+          // ignore: deprecated_member_use
           background: const Color(0xFFFAFAFC),
           surface: Colors.white,
           onPrimary: Colors.white,
           onSecondary: Colors.white,
+          // ignore: deprecated_member_use
           onBackground: const Color(0xFF1C1C1E),
           onSurface: const Color(0xFF1C1C1E),
         ),
-        
-        /// TextTheme: Styling untuk semua teks di aplikasi
-        textTheme: Theme.of(context).textTheme.apply(
-          bodyColor: const Color(0xFF1C1C1E),
-          displayColor: const Color(0xFF1C1C1E),
-        ).copyWith(
-          titleMedium: const TextStyle(color: Color(0xFF1C1C1E)),
-          titleLarge: const TextStyle(color: Color(0xFF1C1C1E), fontWeight: FontWeight.bold),
-          bodyMedium: const TextStyle(color: Color(0xFF6B677A)),
+
+        /// FIX: Tidak pakai Theme.of(context) di sini karena context
+        /// belum punya MaterialApp sebagai ancestor → gunakan TextTheme langsung
+        textTheme: const TextTheme(
+          displayLarge: TextStyle(color: Color(0xFF1C1C1E)),
+          displayMedium: TextStyle(color: Color(0xFF1C1C1E)),
+          displaySmall: TextStyle(color: Color(0xFF1C1C1E)),
+          headlineLarge: TextStyle(color: Color(0xFF1C1C1E)),
+          headlineMedium: TextStyle(color: Color(0xFF1C1C1E)),
+          headlineSmall: TextStyle(color: Color(0xFF1C1C1E)),
+          titleLarge: TextStyle(color: Color(0xFF1C1C1E), fontWeight: FontWeight.bold),
+          titleMedium: TextStyle(color: Color(0xFF1C1C1E)),
+          titleSmall: TextStyle(color: Color(0xFF1C1C1E)),
+          bodyLarge: TextStyle(color: Color(0xFF1C1C1E)),
+          bodyMedium: TextStyle(color: Color(0xFF6B677A)),
+          bodySmall: TextStyle(color: Color(0xFF6B677A)),
+          labelLarge: TextStyle(color: Color(0xFF1C1C1E)),
+          labelMedium: TextStyle(color: Color(0xFF1C1C1E)),
+          labelSmall: TextStyle(color: Color(0xFF6B677A)),
         ),
-        
-        /// AppBarTheme: Styling untuk AppBar (header navigasi)
+
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF9D4EDD),
           foregroundColor: Colors.white,
           elevation: 0,
           surfaceTintColor: Colors.transparent,
         ),
-        
-        /// ElevatedButtonTheme: Styling untuk tombol yang menonjol
+
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF9D4EDD),
@@ -80,8 +91,7 @@ class MyApp extends StatelessWidget {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           ),
         ),
-        
-        /// ChipTheme: Styling untuk chip/filter pills
+
         chipTheme: ChipThemeData(
           backgroundColor: const Color(0xFFFFF0F5),
           selectedColor: const Color(0xFF9D4EDD),
@@ -92,9 +102,7 @@ class MyApp extends StatelessWidget {
             side: BorderSide(color: const Color(0xFF9D4EDD).withOpacity(0.3)),
           ),
         ),
-        
-        /// InputDecorationTheme: Styling untuk input fields (text form)
-        /// Background putih dengan border ungu muda
+
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: const Color(0xFFFFF0F5),
@@ -110,53 +118,68 @@ class MyApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             borderSide: const BorderSide(color: Color(0xFF9D4EDD), width: 2),
           ),
+          labelStyle: const TextStyle(color: Color(0xFF1C1C1E)),
           hintStyle: TextStyle(color: Colors.grey.shade500),
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         ),
+
+        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+          backgroundColor: Colors.white,
+          selectedItemColor: Color(0xFF9D4EDD),
+          unselectedItemColor: Color(0xFF6B677A),
+          elevation: 20,
+        ),
       ),
-      /// TEMA DARK MODE (Cahaya ke Gelap)
-      /// Menggunakan palet warna ungu pekat dengan primary #B01AFF
+
+      // ─── DARK THEME ─────────────────────────────────────────────
       darkTheme: ThemeData(
         brightness: Brightness.dark,
         fontFamily: 'Poppins',
         primaryColor: const Color(0xFFB01AFF),
         scaffoldBackgroundColor: const Color(0xFF0A0A10),
-        
-        /// ColorScheme Dark: Palet warna untuk dark mode
-        /// - Primary: Ungu cerah (#B01AFF)
-        /// - Secondary: Magenta (#FF006E)
-        /// - Tertiary: Cyan (#00D9FF)
+
         colorScheme: ColorScheme.fromSeed(
           brightness: Brightness.dark,
           seedColor: const Color(0xFFB01AFF),
           primary: const Color(0xFFB01AFF),
           secondary: const Color(0xFFFF006E),
           tertiary: const Color(0xFF00D9FF),
+          // ignore: deprecated_member_use
           background: const Color(0xFF0A0A10),
           surface: const Color(0xFF1A1A22),
           onPrimary: Colors.white,
           onSecondary: Colors.white,
+          // ignore: deprecated_member_use
           onBackground: const Color(0xFFE2E2E3),
           onSurface: const Color(0xFFE2E2E3),
         ),
-        
-        /// TextTheme Dark: Styling teks untuk dark mode (warna terang)
-        textTheme: Theme.of(context).textTheme.apply(
-          bodyColor: const Color(0xFFE2E2E3),
-          displayColor: const Color(0xFFE2E2E3),
-        ).copyWith(
-          bodyMedium: const TextStyle(color: Color(0xFFA29BFE)),
+
+        /// FIX: Sama seperti light — pakai const TextTheme langsung
+        textTheme: const TextTheme(
+          displayLarge: TextStyle(color: Color(0xFFE2E2E3)),
+          displayMedium: TextStyle(color: Color(0xFFE2E2E3)),
+          displaySmall: TextStyle(color: Color(0xFFE2E2E3)),
+          headlineLarge: TextStyle(color: Color(0xFFE2E2E3)),
+          headlineMedium: TextStyle(color: Color(0xFFE2E2E3)),
+          headlineSmall: TextStyle(color: Color(0xFFE2E2E3)),
+          titleLarge: TextStyle(color: Color(0xFFE2E2E3), fontWeight: FontWeight.bold),
+          titleMedium: TextStyle(color: Color(0xFFE2E2E3)),
+          titleSmall: TextStyle(color: Color(0xFFE2E2E3)),
+          bodyLarge: TextStyle(color: Color(0xFFE2E2E3)),
+          bodyMedium: TextStyle(color: Color(0xFFA29BFE)),
+          bodySmall: TextStyle(color: Color(0xFFA29BFE)),
+          labelLarge: TextStyle(color: Color(0xFFE2E2E3)),
+          labelMedium: TextStyle(color: Color(0xFFE2E2E3)),
+          labelSmall: TextStyle(color: Color(0xFFA29BFE)),
         ),
-        
-        /// AppBarTheme Dark: Header dengan ungu cerah
+
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFB01AFF),
+          backgroundColor: Color(0xFF1A1A22),
           foregroundColor: Colors.white,
           elevation: 0,
           surfaceTintColor: Colors.transparent,
         ),
-        
-        /// ElevatedButtonTheme Dark: Tombol dengan ungu cerah
+
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFFB01AFF),
@@ -166,8 +189,7 @@ class MyApp extends StatelessWidget {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           ),
         ),
-        
-        /// ChipTheme Dark: Filter pills dengan background gelap
+
         chipTheme: ChipThemeData(
           backgroundColor: const Color(0xFF2D1B4E),
           selectedColor: const Color(0xFFB01AFF),
@@ -178,8 +200,7 @@ class MyApp extends StatelessWidget {
             side: BorderSide(color: const Color(0xFFB01AFF).withOpacity(0.5)),
           ),
         ),
-        
-        /// InputDecorationTheme Dark: Input fields dengan background ungu gelap
+
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: const Color(0xFF2D1B4E),
@@ -195,11 +216,12 @@ class MyApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             borderSide: const BorderSide(color: Color(0xFFB01AFF), width: 2),
           ),
-          hintStyle: const TextStyle(color: Color(0xFFB01AFF)),
+          /// FIX: label style kontras di dark mode
+          labelStyle: const TextStyle(color: Color(0xFFE2E2E3)),
+          hintStyle: TextStyle(color: const Color(0xFFB01AFF).withOpacity(0.6)),
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         ),
-        
-        /// BottomNavigationBarTheme Dark: Navigation bar bawah untuk dark mode
+
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: Color(0xFF1A1A22),
           selectedItemColor: Color(0xFFB01AFF),
@@ -207,14 +229,12 @@ class MyApp extends StatelessWidget {
           elevation: 20,
         ),
       ),
-      
-      /// themeMode: Mengikuti sistem device (light/dark)
-      themeMode: ThemeMode.system,
-      
-      /// home: Screen pertama yang ditampilkan (Login Screen)
+
+      /// FIX UTAMA: themeMode sekarang dikontrol ThemeProvider,
+      /// bukan hardcode ThemeMode.system
+      themeMode: themeProvider.themeMode,
+
       home: const LoginScreen(),
-      
-      /// routes: Penyimpanan named routes untuk navigasi
       routes: {
         '/home': (context) => const MainScreen(),
       },
@@ -222,11 +242,8 @@ class MyApp extends StatelessWidget {
   }
 }
 
-/// Kelas MainScreen: Widget utama navigasi aplikasi
-/// Menggunakan BottomNavigationBar untuk switching antar 3 screen:
-/// - HomeScreen: Daftar event
-/// - AddEventScreen: Membuat event baru
-/// - ProfileScreen: Data profil user
+// ─── MainScreen ──────────────────────────────────────────────────────────────
+
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -235,59 +252,35 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  /// Index tab yang aktif (0=Home, 1=Add Event, 2=Profile)
   int _selectedIndex = 0;
-  
-  /// GlobalKey untuk mengakses state HomeScreen dan ProfileScreen
-  /// Memungkinkan refresh data ketika switching tab
   final GlobalKey<State<HomeScreen>> homeScreenKey = GlobalKey();
   final GlobalKey<State<ProfileScreen>> profileScreenKey = GlobalKey();
 
-  /// Fungsi untuk handle ketika user tap item di BottomNavigationBar
-  /// - Update index tab yang aktif
-  /// - Refresh data sesuai tab yang dipilih (home atau profile)
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-    
-    // Refresh data setelah switching tab
+    setState(() => _selectedIndex = index);
+
     if (index == 0) {
       Future.delayed(const Duration(milliseconds: 100), () {
-        final homeState = homeScreenKey.currentState;
-        if (homeState != null) {
-          (homeState as dynamic).reloadEvents();
-        }
+        final s = homeScreenKey.currentState;
+        if (s != null) (s as dynamic).reloadEvents();
       });
     } else if (index == 2) {
       Future.delayed(const Duration(milliseconds: 100), () {
-        final profileState = profileScreenKey.currentState;
-        if (profileState != null) {
-          (profileState as dynamic).reloadData();
-        }
+        final s = profileScreenKey.currentState;
+        if (s != null) (s as dynamic).reloadData();
       });
     }
   }
 
-  /// Fungsi callback ketika event baru berhasil dibuat
-  /// Merefresh data di HomeScreen dan ProfileScreen agar muncul event terbaru
   void _onEventCreated() {
-    // Refresh both HomeScreen and ProfileScreen
     final homeState = homeScreenKey.currentState;
     final profileState = profileScreenKey.currentState;
-    
-    if (homeState != null) {
-      (homeState as dynamic).reloadEvents();
-    }
-    if (profileState != null) {
-      (profileState as dynamic).reloadData();
-    }
+    if (homeState != null) (homeState as dynamic).reloadEvents();
+    if (profileState != null) (profileState as dynamic).reloadData();
   }
 
   @override
   Widget build(BuildContext context) {
-    /// Daftar 3 screen utama aplikasi
-    /// IndexedStack digunakan untuk menjaga state setiap screen
     final screens = <Widget>[
       HomeScreen(key: homeScreenKey),
       AddEventScreen(onEventCreated: _onEventCreated),
@@ -295,27 +288,12 @@ class _MainScreenState extends State<MainScreen> {
     ];
 
     return Scaffold(
-      /// Body: Menampilkan screen sesuai tab yang dipilih
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: screens,
-      ),
-      
-      /// BottomNavigationBar: Navigation bar bawah dengan 3 tab
+      body: IndexedStack(index: _selectedIndex, children: screens),
       bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_filled),
-            label: 'Beranda',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.add_circle_outline),
-            label: 'Buat Event',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            label: 'Profil',
-          ),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Beranda'),
+          BottomNavigationBarItem(icon: Icon(Icons.add_circle_outline), label: 'Buat Event'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profil'),
         ],
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
