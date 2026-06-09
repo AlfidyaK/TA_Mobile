@@ -62,8 +62,6 @@ class MyApp extends StatelessWidget {
           onSurface: const Color(0xFF1C1C1E),
         ),
 
-        /// FIX: Tidak pakai Theme.of(context) di sini karena context
-        /// belum punya MaterialApp sebagai ancestor → gunakan TextTheme langsung
         textTheme: const TextTheme(
           displayLarge: TextStyle(color: Color(0xFF1C1C1E)),
           displayMedium: TextStyle(color: Color(0xFF1C1C1E)),
@@ -161,7 +159,6 @@ class MyApp extends StatelessWidget {
           onSurface: const Color(0xFFE2E2E3),
         ),
 
-        /// FIX: Sama seperti light — pakai const TextTheme langsung
         textTheme: const TextTheme(
           displayLarge: TextStyle(color: Color(0xFFE2E2E3)),
           displayMedium: TextStyle(color: Color(0xFFE2E2E3)),
@@ -223,7 +220,6 @@ class MyApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             borderSide: const BorderSide(color: Color(0xFFB01AFF), width: 2),
           ),
-          /// FIX: label style kontras di dark mode
           labelStyle: const TextStyle(color: Color(0xFFE2E2E3)),
           hintStyle: TextStyle(color: const Color(0xFFB01AFF).withOpacity(0.6)),
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -237,10 +233,7 @@ class MyApp extends StatelessWidget {
         ),
       ),
 
-      /// FIX UTAMA: themeMode sekarang dikontrol ThemeProvider,
-      /// bukan hardcode ThemeMode.system
       themeMode: themeProvider.themeMode,
-
       home: const LoginScreen(),
       routes: {
         '/home': (context) => const MainScreen(),
@@ -280,17 +273,26 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _onEventCreated() {
+    setState(() => _selectedIndex = 0); // Pindah otomatis ke Beranda
+
     final homeState = homeScreenKey.currentState;
     final profileState = profileScreenKey.currentState;
     if (homeState != null) (homeState as dynamic).reloadEvents();
     if (profileState != null) (profileState as dynamic).reloadData();
   }
 
+  void _goBackToHome() {
+    setState(() => _selectedIndex = 0); // Pindah otomatis ke Beranda saat panah back ditekan
+  }
+
   @override
   Widget build(BuildContext context) {
     final screens = <Widget>[
       HomeScreen(key: homeScreenKey),
-      AddEventScreen(onEventCreated: _onEventCreated),
+      AddEventScreen(
+        onEventCreated: _onEventCreated,
+        onBack: _goBackToHome, // Pass fungsi back ke AddEventScreen
+      ),
       ProfileScreen(key: profileScreenKey),
     ];
 

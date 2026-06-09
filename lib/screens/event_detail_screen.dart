@@ -1,9 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // Wajib ada untuk fitur Favorit
 import '../models/event_model.dart';
 import 'registration_screen.dart';
-import '../services/event_service.dart';
 
 class EventDetailScreen extends StatefulWidget {
   final Event event;
@@ -15,12 +15,102 @@ class EventDetailScreen extends StatefulWidget {
 }
 
 class _EventDetailScreenState extends State<EventDetailScreen> {
+  bool _isFavorite = false;
+  bool _isLoadingFav = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkFavoriteStatus();
+  }
+
+  // Cek apakah event ini sudah difavoritkan
+  Future<void> _checkFavoriteStatus() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        if (mounted) setState(() => _isLoadingFav = false);
+        return;
+      }
+
+      final res = await supabase
+          .from('favorites')
+          .select()
+          .eq('user_id', user.id)
+          .eq('event_id', widget.event.id)
+          .maybeSingle();
+
+      if (mounted) {
+        setState(() {
+          _isFavorite = res != null;
+          _isLoadingFav = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingFav = false);
+    }
+  }
+
+  // Fungsi saat tombol Love ditekan
+  // Fungsi saat tombol Love ditekan
+  Future<void> _toggleFavorite() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Silakan login terlebih dahulu'),
+        ));
+        return;
+      }
+
+      setState(() => _isFavorite = !_isFavorite); // Optimistic UI update
+
+      if (_isFavorite) {
+        await supabase.from('favorites').insert({
+          'user_id': user.id,
+          'event_id': widget.event.id,
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Berhasil ditambahkan ke Favorit! ❤️'),
+            duration: Duration(seconds: 1),
+          ));
+        }
+      } else {
+        await supabase
+            .from('favorites')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('event_id', widget.event.id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Dihapus dari Favorit 💔'),
+            duration: Duration(seconds: 1),
+          ));
+        }
+      }
+    } catch (e) {
+      // Jika gagal, kembalikan status love-nya dan tampilkan pesan error
+      if (mounted) {
+        setState(() => _isFavorite = !_isFavorite); 
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: $e'), 
+          backgroundColor: Colors.red,
+        ));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final formattedDate = DateFormat('dd MMM yyyy • HH:mm', 'id_ID').format(widget.event.dateTime);
     final bool isCompleted = widget.event.dateTime.isBefore(DateTime.now());
-    final eventService = EventService();
-    final bool isMyEvent = widget.event.userId == eventService.currentUserId;
+    
+    // Ambil ID user yang sedang login untuk mengecek apakah ini event miliknya
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final bool isMyEvent = widget.event.userId == currentUserId;
 
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -47,17 +137,27 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ),
             actions: [
               IconButton(
+                // PERBAIKAN: Menggunakan onPressed, BUKAN onTap
+                onPressed: _isLoadingFav ? null : _toggleFavorite, 
                 icon: Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: Colors.black38, shape: BoxShape.circle),
-                  child: const Icon(Icons.favorite_border_rounded, size: 20, color: Colors.white),
+                  decoration: const BoxDecoration(color: Colors.black38, shape: BoxShape.circle),
+                  child: _isLoadingFav
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : Icon(
+                          _isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                          size: 20,
+                          color: _isFavorite ? Colors.pinkAccent : Colors.white,
+                        ),
                 ),
-                onPressed: () {},
               ),
               IconButton(
                 icon: Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: Colors.black38, shape: BoxShape.circle),
+                  decoration: const BoxDecoration(color: Colors.black38, shape: BoxShape.circle),
                   child: const Icon(Icons.share_rounded, size: 20, color: Colors.white),
                 ),
                 onPressed: () {},
@@ -91,7 +191,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 12), // Memberikan space ekstra di atas label
+                    const SizedBox(height: 12),
                     // Kategori Tag
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -144,7 +244,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     const SizedBox(height: 16),
                     _buildIconLabel(
                       icon: Icons.person_pin_circle_rounded,
-                      text: 'Hosted by EventGO',
+                      text: 'Hosted by ${widget.event.organizeName}',
                       colorScheme: colorScheme,
                     ),
                     

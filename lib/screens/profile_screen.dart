@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart'; // TAMBAHAN
+import 'dart:io'; // TAMBAHAN
+import 'dart:typed_data'; // TAMBAHAN
+import 'package:flutter/foundation.dart'; // TAMBAHAN
 import '../models/event_model.dart';
 import '../widgets/event_card.dart';
 import '../widgets/ticket_widget.dart';
@@ -22,6 +26,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   List<Event> _createdEvents = [];
   List<Map<String, dynamic>> _registeredTickets = [];
+  List<Event> _favoriteEvents = []; // TAMBAHAN: List untuk event favorit
 
   String? _activePage;
 
@@ -44,6 +49,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       final user = supabase.auth.currentUser;
       if (user == null) return;
 
+      // Load Profile
       final profileRes = await supabase
           .from('profiles')
           .select()
@@ -55,17 +61,25 @@ class _ProfileScreenState extends State<ProfileScreen>
         _userAvatarUrl = profileRes['avatar_url'];
       }
 
+      // Load Created Events
       final createdRes = await supabase
           .from('events')
           .select()
           .eq('creator_id', user.id)
           .order('created_at', ascending: false);
 
+      // Load Registrations
       final registeredRes = await supabase
           .from('registrations')
           .select('id, status, events(*)')
           .eq('user_id', user.id)
           .order('created_at', ascending: false);
+
+      // TAMBAHAN: Load Favorites
+      final favoritesRes = await supabase
+          .from('favorites')
+          .select('events(*)')
+          .eq('user_id', user.id);
 
       if (mounted) {
         setState(() {
@@ -78,6 +92,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                     'event': _parseEvent(d['events']),
                   })
               .toList();
+          
+          // Memasukkan data favorit
+          _favoriteEvents = (favoritesRes as List)
+              .map((d) => _parseEvent(d['events']))
+              .toList();
+
           _isLoading = false;
         });
       }
@@ -96,11 +116,8 @@ class _ProfileScreenState extends State<ProfileScreen>
             data['fandom_category'],
         orElse: () => EventCategory.lainnya,
       ),
-      type: EventType.values.firstWhere(
-        (e) =>
-            e.toString().split('.').last.toUpperCase() == data['event_type'],
-        orElse: () => EventType.lainnya,
-      ),
+      type: data['event_type'] ?? '',
+      organizeName: data['organize_name'] ?? 'Penyelenggara',
       posterUrl: data['poster_url'] ?? '',
       dateTime: data['event_date'] != null
           ? DateTime.parse(data['event_date'])
@@ -116,6 +133,140 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   void reloadData() => _loadData();
+
+  // TAMBAHAN: Fungsi Edit Profile Bottom Sheet
+  Future<void> _showEditProfile() async {
+    final nameController = TextEditingController(text: _userName);
+    File? newAvatarFile;
+    Uint8List? newAvatarBytes;
+    bool isSaving = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) {
+        return StatefulBuilder(builder: (context, setModalState) {
+          Future<void> pickImage() async {
+            final picker = ImagePicker();
+            final picked = await picker.pickImage(source: ImageSource.gallery);
+            if (picked != null) {
+              if (kIsWeb) {
+                final bytes = await picked.readAsBytes();
+                setModalState(() => newAvatarBytes = bytes);
+              } else {
+                setModalState(() => newAvatarFile = File(picked.path));
+              }
+            }
+          }
+
+          Future<void> saveProfile() async {
+            if (nameController.text.trim().isEmpty) return;
+            setModalState(() => isSaving = true);
+            try {
+              final supabase = Supabase.instance.client;
+              final user = supabase.auth.currentUser!;
+              String? newUrl = _userAvatarUrl;
+
+              // Upload Foto jika ada perubahan
+              if (newAvatarFile != null || newAvatarBytes != null) {
+                final fileName = '${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+                if (kIsWeb && newAvatarBytes != null) {
+                  await supabase.storage.from('avatars').uploadBinary(fileName, newAvatarBytes!);
+                } else if (newAvatarFile != null) {
+                  await supabase.storage.from('avatars').upload(fileName, newAvatarFile!);
+                }
+                newUrl = supabase.storage.from('avatars').getPublicUrl(fileName);
+              }
+
+              // Simpan ke database
+              await supabase.from('profiles').upsert({
+                'id': user.id,
+                'full_name': nameController.text.trim(),
+                'avatar_url': newUrl,
+              });
+
+              setState(() {
+                _userName = nameController.text.trim();
+                if (newUrl != null) _userAvatarUrl = newUrl;
+              });
+
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Profil berhasil diperbarui! ✅'), backgroundColor: Colors.green)
+                );
+              }
+            } catch (e) {
+              if (ctx.mounted) {
+                // Munculkan error di layar agar tahu masalahnya
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(content: Text('Gagal: $e'), backgroundColor: Colors.red)
+                );
+              }
+            } finally {
+              if (ctx.mounted) setModalState(() => isSaving = false);
+            }
+          }
+
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          return Padding(
+            padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 20, right: 20, top: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Edit Profile', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 20),
+                GestureDetector(
+                  onTap: pickImage,
+                  child: CircleAvatar(
+                    radius: 40,
+                    backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                    backgroundImage: newAvatarBytes != null
+                        ? MemoryImage(newAvatarBytes!) as ImageProvider
+                        : (newAvatarFile != null
+                            ? FileImage(newAvatarFile!)
+                            : (_userAvatarUrl != null && _userAvatarUrl!.isNotEmpty
+                                ? NetworkImage(_userAvatarUrl!)
+                                : null)),
+                    child: (newAvatarFile == null && newAvatarBytes == null && (_userAvatarUrl == null || _userAvatarUrl!.isEmpty))
+                        ? Icon(Icons.add_a_photo, color: Theme.of(context).colorScheme.primary)
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text('Tap untuk ganti foto', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: nameController,
+                  style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                  decoration: InputDecoration(
+                    labelText: 'Nama Lengkap',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: isSaving ? null : saveProfile,
+                    child: isSaving
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text('Simpan Perubahan'),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          );
+        });
+      },
+    );
+  }
 
   void _handleLogout() {
     showDialog(
@@ -168,14 +319,16 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorScheme = Theme.of(context).colorScheme;
-    final scaffoldBg =
-        isDark ? const Color(0xFF0D0D14) : const Color(0xFFF5F5F8);
+    final scaffoldBg = isDark ? const Color(0xFF0D0D14) : const Color(0xFFF5F5F8);
 
     if (_activePage == 'registrations') {
       return _SubPageScaffold(
         title: 'My Registrations',
         primaryColor: colorScheme.primary,
-        onBack: () => setState(() => _activePage = null),
+        onBack: () {
+          setState(() => _activePage = null);
+          _loadData();
+        },
         child: _isLoading
             ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
             : _buildTicketList(_registeredTickets),
@@ -186,10 +339,28 @@ class _ProfileScreenState extends State<ProfileScreen>
       return _SubPageScaffold(
         title: 'My Events',
         primaryColor: colorScheme.primary,
-        onBack: () => setState(() => _activePage = null),
+        onBack: () {
+          setState(() => _activePage = null);
+          _loadData();
+        },
         child: _isLoading
             ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
-            : _buildEventList(_createdEvents),
+            : _buildEventList(_createdEvents, isMyEventList: true),
+      );
+    }
+
+    // TAMBAHAN: Routing halaman Favorite
+    if (_activePage == 'favorites') {
+      return _SubPageScaffold(
+        title: 'Favorite Events',
+        primaryColor: colorScheme.primary,
+        onBack: () {
+          setState(() => _activePage = null);
+          _loadData(); // Refresh pas back biar update kalo ada yg di-unfav
+        },
+        child: _isLoading
+            ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
+            : _buildEventList(_favoriteEvents, isMyEventList: false),
       );
     }
 
@@ -259,13 +430,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                     CircleAvatar(
                       radius: 36,
                       backgroundColor: Colors.white24,
-                      backgroundImage: (_userAvatarUrl != null &&
-                              _userAvatarUrl!.isNotEmpty)
+                      backgroundImage: (_userAvatarUrl != null && _userAvatarUrl!.isNotEmpty)
                           ? NetworkImage(_userAvatarUrl!)
                           : null,
                       child: (_userAvatarUrl == null || _userAvatarUrl!.isEmpty)
-                          ? const Icon(Icons.person_rounded,
-                              size: 40, color: Colors.white)
+                          ? const Icon(Icons.person_rounded, size: 40, color: Colors.white)
                           : null,
                     ),
                     const SizedBox(width: 16),
@@ -273,13 +442,32 @@ class _ProfileScreenState extends State<ProfileScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            _isLoading ? 'Memuat...' : _userName,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          // TAMBAHAN: Nama dan Tombol Pensil (Edit)
+                          Row(
+                            children: [
+                              Text(
+                                _isLoading ? 'Memuat...' : _userName,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              if (!_isLoading)
+                                InkWell(
+                                  onTap: _showEditProfile,
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white24,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.edit_rounded, size: 14, color: Colors.white),
+                                  ),
+                                ),
+                            ],
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -305,8 +493,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('Profile Completion',
-                            style:
-                                TextStyle(color: Colors.white, fontSize: 13)),
+                            style: TextStyle(color: Colors.white, fontSize: 13)),
                         Text(
                           '${(_profileCompletion * 100).toInt()}%',
                           style: const TextStyle(
@@ -324,8 +511,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         value: _profileCompletion,
                         minHeight: 6,
                         backgroundColor: Colors.white.withOpacity(0.25),
-                        valueColor:
-                            const AlwaysStoppedAnimation<Color>(Colors.white),
+                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     ),
                   ],
@@ -338,16 +524,12 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildMenuCard(
-      {required bool isDark, required ColorScheme colorScheme}) {
-    // ── Semua warna card ikut tema aktif ──────────────────────────────────
+  Widget _buildMenuCard({required bool isDark, required ColorScheme colorScheme}) {
     final cardBg = isDark ? const Color(0xFF1C1C26) : Colors.white;
     final textColor = isDark ? Colors.white : const Color(0xFF222222);
     final iconColor = isDark ? Colors.white70 : const Color(0xFF444444);
-    final chevronColor =
-        isDark ? Colors.white.withOpacity(0.3) : Colors.grey.shade400;
-    final dividerColor =
-        isDark ? Colors.white.withOpacity(0.07) : Colors.grey.shade100;
+    final chevronColor = isDark ? Colors.white.withOpacity(0.3) : Colors.grey.shade400;
+    final dividerColor = isDark ? Colors.white.withOpacity(0.07) : Colors.grey.shade100;
 
     Widget item({
       required IconData icon,
@@ -371,9 +553,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               Expanded(
                 child: Text(label,
                     style: TextStyle(
-                        fontSize: 15,
-                        color: color,
-                        fontWeight: FontWeight.w500)),
+                        fontSize: 15, color: color, fontWeight: FontWeight.w500)),
               ),
               if (!isDestructive)
                 Icon(Icons.chevron_right, color: chevronColor, size: 20),
@@ -393,16 +573,12 @@ class _ProfileScreenState extends State<ProfileScreen>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: isDark
-                ? Colors.black.withOpacity(0.4)
-                : Colors.black.withOpacity(0.06),
+            color: isDark ? Colors.black.withOpacity(0.4) : Colors.black.withOpacity(0.06),
             blurRadius: isDark ? 16 : 12,
             offset: const Offset(0, 4),
           ),
         ],
-        border: isDark
-            ? Border.all(color: Colors.white.withOpacity(0.06))
-            : null,
+        border: isDark ? Border.all(color: Colors.white.withOpacity(0.06)) : null,
       ),
       child: Column(
         children: [
@@ -416,20 +592,12 @@ class _ProfileScreenState extends State<ProfileScreen>
               label: 'My Events',
               onTap: () => setState(() => _activePage = 'events')),
           div(),
+          // TAMBAHAN: Route ke Favorite Events
           item(
               icon: Icons.favorite_border_rounded,
               label: 'Favorite Events',
-              onTap: () {}),
+              onTap: () => setState(() => _activePage = 'favorites')),
           div(),
-          item(
-              icon: Icons.edit_outlined,
-              label: 'Edit Profile',
-              onTap: () {}),
-          div(),
-          item(
-              icon: Icons.settings_outlined,
-              label: 'Settings',
-              onTap: () {}),
           div(),
           item(
               icon: Icons.logout_rounded,
@@ -441,13 +609,12 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildEventList(List<Event> events) {
+  Widget _buildEventList(List<Event> events, {required bool isMyEventList}) {
     final colorScheme = Theme.of(context).colorScheme;
     if (events.isEmpty) {
       return Center(
           child: Text('Tidak ada event untuk ditampilkan.',
-              style:
-                  TextStyle(color: colorScheme.onSurface.withOpacity(0.5))));
+              style: TextStyle(color: colorScheme.onSurface.withOpacity(0.5))));
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
@@ -457,26 +624,29 @@ class _ProfileScreenState extends State<ProfileScreen>
         return Column(
           children: [
             EventCard(event: event),
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 24, left: 4, right: 4),
-              child: ElevatedButton.icon(
-                onPressed: () => _showManageParticipants(event),
-                icon: const Icon(Icons.how_to_reg_rounded),
-                label: const Text('Kelola & Validasi Pendaftar'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colorScheme.primary.withOpacity(0.1),
-                  foregroundColor: colorScheme.primary,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                        color: colorScheme.primary.withOpacity(0.3)),
+            // Tombol Kelola Pendaftar HANYA muncul kalau di tab My Events
+            if (isMyEventList)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 24, left: 4, right: 4),
+                child: ElevatedButton.icon(
+                  onPressed: () => _showManageParticipants(event),
+                  icon: const Icon(Icons.how_to_reg_rounded),
+                  label: const Text('Kelola & Validasi Pendaftar'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary.withOpacity(0.1),
+                    foregroundColor: colorScheme.primary,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: colorScheme.primary.withOpacity(0.3)),
+                    ),
                   ),
                 ),
-              ),
-            ),
+              )
+            else
+              const SizedBox(height: 12),
           ],
         );
       },
@@ -488,8 +658,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (tickets.isEmpty) {
       return Center(
           child: Text('Anda belum memiliki tiket.',
-              style:
-                  TextStyle(color: colorScheme.onSurface.withOpacity(0.5))));
+              style: TextStyle(color: colorScheme.onSurface.withOpacity(0.5))));
     }
     return ListView.builder(
       padding: const EdgeInsets.all(8),
@@ -536,25 +705,6 @@ class _SubPageScaffold extends StatelessWidget {
       body: child,
     );
   }
-}
-
-// ─── Sliver delegate ─────────────────────────────────────────────────────────
-class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
-  _SliverTabBarDelegate(this._tabBar, this.backgroundColor);
-  final TabBar _tabBar;
-  final Color backgroundColor;
-
-  @override
-  double get minExtent => _tabBar.preferredSize.height;
-  @override
-  double get maxExtent => _tabBar.preferredSize.height;
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) =>
-      Container(color: backgroundColor, child: _tabBar);
-
-  @override
-  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) => false;
 }
 
 // ─── Bottom Sheet: Kelola Peserta ─────────────────────────────────────────────
@@ -609,10 +759,8 @@ class _ManageParticipantsSheetState extends State<_ManageParticipantsSheet> {
       _filteredParticipants = keyword.isEmpty
           ? _participants
           : _participants.where((p) {
-              final name =
-                  (p['registrant_name'] ?? '').toString().toLowerCase();
-              final email =
-                  (p['registrant_email'] ?? '').toString().toLowerCase();
+              final name = (p['registrant_name'] ?? '').toString().toLowerCase();
+              final email = (p['registrant_email'] ?? '').toString().toLowerCase();
               return name.contains(keyword.toLowerCase()) ||
                   email.contains(keyword.toLowerCase());
             }).toList();
@@ -661,9 +809,7 @@ class _ManageParticipantsSheetState extends State<_ManageParticipantsSheet> {
               height: 4,
               width: 40,
               decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.white.withOpacity(0.2)
-                    : Colors.grey.withOpacity(0.3),
+                color: isDark ? Colors.white.withOpacity(0.2) : Colors.grey.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -679,8 +825,7 @@ class _ManageParticipantsSheetState extends State<_ManageParticipantsSheet> {
                         fontWeight: FontWeight.bold,
                         color: isDark ? Colors.white : Colors.black87)),
                 IconButton(
-                  icon: Icon(Icons.close,
-                      color: isDark ? Colors.white70 : Colors.black54),
+                  icon: Icon(Icons.close, color: isDark ? Colors.white70 : Colors.black54),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -705,16 +850,11 @@ class _ManageParticipantsSheetState extends State<_ManageParticipantsSheet> {
               onChanged: _runFilter,
               decoration: InputDecoration(
                 hintText: 'Cari nama atau email pendaftar...',
-                hintStyle: TextStyle(
-                    color:
-                        isDark ? Colors.white38 : Colors.grey.shade400),
-                prefixIcon: Icon(Icons.search,
-                    color: isDark ? Colors.white38 : Colors.grey),
+                hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.grey.shade400),
+                prefixIcon: Icon(Icons.search, color: isDark ? Colors.white38 : Colors.grey),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
-                        icon: Icon(Icons.clear,
-                            color:
-                                isDark ? Colors.white38 : Colors.grey),
+                        icon: Icon(Icons.clear, color: isDark ? Colors.white38 : Colors.grey),
                         onPressed: () {
                           _searchController.clear();
                           _runFilter('');
@@ -722,9 +862,7 @@ class _ManageParticipantsSheetState extends State<_ManageParticipantsSheet> {
                       )
                     : null,
                 filled: true,
-                fillColor: isDark
-                    ? Colors.white.withOpacity(0.07)
-                    : Colors.grey.shade100,
+                fillColor: isDark ? Colors.white.withOpacity(0.07) : Colors.grey.shade100,
                 contentPadding: const EdgeInsets.symmetric(vertical: 0),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -734,33 +872,23 @@ class _ManageParticipantsSheetState extends State<_ManageParticipantsSheet> {
             ),
           ),
           const SizedBox(height: 12),
-          Divider(
-              color: isDark
-                  ? Colors.white.withOpacity(0.08)
-                  : Colors.grey.withOpacity(0.2),
-              height: 1),
+          Divider(color: isDark ? Colors.white.withOpacity(0.08) : Colors.grey.withOpacity(0.2), height: 1),
           Expanded(
             child: _isLoading
-                ? Center(
-                    child: CircularProgressIndicator(
-                        color: colorScheme.primary))
+                ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
                 : _filteredParticipants.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.search_off_rounded,
-                                size: 48,
-                                color: colorScheme.onSurface
-                                    .withOpacity(0.3)),
+                                size: 48, color: colorScheme.onSurface.withOpacity(0.3)),
                             const SizedBox(height: 16),
                             Text(
                               _searchController.text.isNotEmpty
                                   ? 'Peserta tidak ditemukan'
                                   : 'Belum ada yang mendaftar 🥲',
-                              style: TextStyle(
-                                  color: colorScheme.onSurface
-                                      .withOpacity(0.5)),
+                              style: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
                             ),
                           ],
                         ),
@@ -768,8 +896,7 @@ class _ManageParticipantsSheetState extends State<_ManageParticipantsSheet> {
                     : ListView.separated(
                         padding: const EdgeInsets.all(20),
                         itemCount: _filteredParticipants.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: 16),
+                        separatorBuilder: (_, __) => const SizedBox(height: 16),
                         itemBuilder: (context, index) {
                           final p = _filteredParticipants[index];
                           final isSuccess = p['status'] == 'success';
@@ -781,15 +908,13 @@ class _ManageParticipantsSheetState extends State<_ManageParticipantsSheet> {
                                   : const Color(0xFFFEF5E7),
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                  color: colorScheme.primary
-                                      .withOpacity(0.2)),
+                                  color: colorScheme.primary.withOpacity(0.2)),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     Expanded(
                                       child: Text(
@@ -797,28 +922,21 @@ class _ManageParticipantsSheetState extends State<_ManageParticipantsSheet> {
                                         style: TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 16,
-                                            color: isDark
-                                                ? Colors.white
-                                                : Colors.black87),
+                                            color: isDark ? Colors.white : Colors.black87),
                                       ),
                                     ),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                       decoration: BoxDecoration(
                                         color: isSuccess
                                             ? Colors.green.withOpacity(0.15)
-                                            : Colors.orange
-                                                .withOpacity(0.15),
-                                        borderRadius:
-                                            BorderRadius.circular(8),
+                                            : Colors.orange.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
                                         isSuccess ? 'LUNAS' : 'PENDING',
                                         style: TextStyle(
-                                            color: isSuccess
-                                                ? Colors.green
-                                                : Colors.orange,
+                                            color: isSuccess ? Colors.green : Colors.orange,
                                             fontSize: 12,
                                             fontWeight: FontWeight.bold),
                                       ),
@@ -829,40 +947,30 @@ class _ManageParticipantsSheetState extends State<_ManageParticipantsSheet> {
                                 Text(p['registrant_email'] ?? '',
                                     style: TextStyle(
                                         fontSize: 13,
-                                        color: isDark
-                                            ? Colors.white54
-                                            : Colors.grey)),
+                                        color: isDark ? Colors.white54 : Colors.grey)),
                                 Text(p['registrant_phone'] ?? '',
                                     style: TextStyle(
                                         fontSize: 13,
-                                        color: isDark
-                                            ? Colors.white54
-                                            : Colors.grey)),
-                                if (!widget.event.isFree &&
-                                    p['payment_proof_url'] != null) ...[
+                                        color: isDark ? Colors.white54 : Colors.grey)),
+                                if (!widget.event.isFree && p['payment_proof_url'] != null) ...[
                                   const SizedBox(height: 12),
                                   GestureDetector(
                                     onTap: () => showDialog(
                                       context: context,
                                       builder: (_) => Dialog(
                                         child: InteractiveViewer(
-                                          child: Image.network(
-                                              p['payment_proof_url'],
-                                              fit: BoxFit.contain),
+                                          child: Image.network(p['payment_proof_url'], fit: BoxFit.contain),
                                         ),
                                       ),
                                     ),
                                     child: Row(
                                       children: [
-                                        Icon(Icons.image,
-                                            size: 16,
-                                            color: colorScheme.primary),
+                                        Icon(Icons.image, size: 16, color: colorScheme.primary),
                                         const SizedBox(width: 4),
                                         Text('Lihat Bukti Transfer',
                                             style: TextStyle(
                                                 color: colorScheme.primary,
-                                                fontWeight:
-                                                    FontWeight.bold)),
+                                                fontWeight: FontWeight.bold)),
                                       ],
                                     ),
                                   ),
@@ -872,18 +980,14 @@ class _ManageParticipantsSheetState extends State<_ManageParticipantsSheet> {
                                   SizedBox(
                                     width: double.infinity,
                                     child: ElevatedButton(
-                                      onPressed: () =>
-                                          _validatePayment(p['id']),
+                                      onPressed: () => _validatePayment(p['id']),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.green,
                                         foregroundColor: Colors.white,
                                         elevation: 0,
-                                        shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(8)),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                       ),
-                                      child: const Text(
-                                          'Validasi & Aktifkan Tiket'),
+                                      child: const Text('Validasi & Aktifkan Tiket'),
                                     ),
                                   ),
                                 ],

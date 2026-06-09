@@ -93,7 +93,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           tempEvents = tempEvents.where((e) => e.category == EventCategory.kpop).toList();
           break;
         case 'Musik':
-          tempEvents = tempEvents.where((e) => e.type == EventType.konser).toList();
+          tempEvents = tempEvents.where((e){
+            final typeLower = e.type.toLowerCase();
+            return typeLower.contains('konser') || typeLower.contains('musik') || typeLower.contains('noraebang');
+          }).toList();
           break;
         case 'Segera':
           tempEvents = tempEvents.where((e) => e.dateTime.isAfter(now)).toList()
@@ -122,11 +125,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
 
       if (_advancedFilters.eventType != null) {
-        final type = EventType.values.firstWhere(
-          (e) => e.toString().split('.').last.toLowerCase() == _advancedFilters.eventType!.toLowerCase(),
-          orElse: () => EventType.lainnya,
-        );
-        if (type != EventType.lainnya) tempEvents = tempEvents.where((e) => e.type == type).toList();
+        // SESUAIKAN: Cocokkan kata dari filter lanjutan dengan ketikan user di database
+        final typeFilter = _advancedFilters.eventType!.toLowerCase();
+        tempEvents = tempEvents.where((e) => e.type.toLowerCase().contains(typeFilter)).toList();
       }
 
       if (_advancedFilters.price != null) {

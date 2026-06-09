@@ -4,9 +4,6 @@
 /// Kategori event fandom (K-pop, Jepang, dll)
 enum EventCategory { kpop, jepang, lainnya }
 
-/// Tipe/jenis event (Karaoke, Nobar, Photobooth, dll)
-enum EventType { noraebang, nobar, photobooth, birthdayEvent, konser, lainnya }
-
 class Registration {
   final String eventId;
   final String userName;
@@ -31,11 +28,12 @@ class Event {
   final String id;                      // ID unik event
   final String title;                   // Nama event
   final EventCategory category;         // Kategori fandom
-  final EventType type;                 // Jenis event
+  final String type;                    // Jenis event (Contoh: noraebang, nobar, dll)
   final String posterUrl;               // URL gambar poster
   final DateTime dateTime;              // Tanggal & waktu event
   final String location;                // Lokasi (kota)
   final String venue;                   // Nama tempat/venue
+  final String organizeName;           // Nama penyelenggara
   final bool isFree;                    // Gratis atau berbayar
   final double? price;                  // Harga tiket (opsional)
   final String? registrationLink;       // Link daftar (opsional)
@@ -54,6 +52,7 @@ class Event {
     required this.venue,
     this.isFree = true,
     this.price,
+    this.organizeName = 'EventGo User',
     this.registrationLink,
     required this.userId,
     this.isCompleted = false,
@@ -69,31 +68,20 @@ class Event {
     }
   }
 
-  // Parse EventType dari string
-  EventType parseType(String? val) {
-    switch (val?.toLowerCase()) {
-      case 'noraebang': return EventType.noraebang;
-      case 'nobar': return EventType.nobar;
-      case 'photobooth': return EventType.photobooth;
-      case 'birthdayevent': return EventType.birthdayEvent;
-      case 'konser': return EventType.konser;
-      default: return EventType.lainnya;
-    }
-  }
-
   final price = (data['ticket_price'] as num?)?.toDouble() ?? 0;
 
   return Event(
     id: data['id'].toString(),
     title: data['title'] ?? '',
     category: parseCategory(data['fandom_category']),
-    type: parseType(data['event_type']),
+    type: data['event_type'] ?? '',
     posterUrl: data['poster_url'] ?? 'https://placehold.co/600x800',
     dateTime: DateTime.parse(data['event_date']),
     location: data['location_region'] ?? '',
     venue: data['location_name'] ?? '',
     isFree: price == 0,
     price: price > 0 ? price : null,
+    organizeName: data['organize_name'] ?? 'Penyelenggara Anonim',
     bankAccount: data['bank_account_info'],
     userId: data['creator_id'] ?? '',
   );

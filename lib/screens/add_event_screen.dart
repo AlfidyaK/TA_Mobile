@@ -8,8 +8,9 @@ import '../models/event_model.dart';
 
 class AddEventScreen extends StatefulWidget {
   final VoidCallback? onEventCreated;
+  final VoidCallback? onBack; // Parameter baru untuk panah kembali
 
-  const AddEventScreen({super.key, this.onEventCreated});
+  const AddEventScreen({super.key, this.onEventCreated, this.onBack});
 
   @override
   State<AddEventScreen> createState() => _AddEventScreenState();
@@ -20,27 +21,24 @@ class _AddEventScreenState extends State<AddEventScreen> {
   final _titleController = TextEditingController();
   final _locationController = TextEditingController();
   final _venueController = TextEditingController();
+  final _organizeController = TextEditingController(); // Controller untuk Penyelenggara
   final _priceController = TextEditingController();
   final _bankAccountController = TextEditingController();
   final _customCategoryController = TextEditingController();
-  final _customTypeController = TextEditingController();
+  final _typeController = TextEditingController();
 
   bool _isLoading = false;
 
   EventCategory _category = EventCategory.kpop;
-  EventType _type = EventType.noraebang;
 
   File? _posterImage;
   Uint8List? _posterImageBytes;
 
-  // ── PERBAIKAN: Simpan tanggal & waktu di state, dan gunakan controller
-  //    terpisah agar widget InputDecorator langsung re-render ──
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
 
   bool _isFree = true;
 
-  // Format tanggal ke string yang tampil di field
   String get _dateLabel {
     if (_selectedDate == null) return 'DD / MM / YYYY';
     return '${_selectedDate!.day.toString().padLeft(2, '0')} / '
@@ -48,7 +46,6 @@ class _AddEventScreenState extends State<AddEventScreen> {
         '${_selectedDate!.year}';
   }
 
-  // Format waktu ke string yang tampil di field
   String get _timeLabel {
     if (_selectedTime == null) return 'HH : MM';
     final h = _selectedTime!.hour.toString().padLeft(2, '0');
@@ -64,7 +61,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
       lastDate: DateTime(2100),
     );
     if (date != null) {
-      setState(() => _selectedDate = date); // setState langsung update UI
+      setState(() => _selectedDate = date);
     }
   }
 
@@ -74,7 +71,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
       initialTime: TimeOfDay.now(),
     );
     if (time != null) {
-      setState(() => _selectedTime = time); // setState langsung update UI
+      setState(() => _selectedTime = time);
     }
   }
 
@@ -144,9 +141,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
           ? (_customCategoryController.text.trim().toUpperCase())
           : _category.toString().split('.').last.toUpperCase();
 
-      final finalType = _type == EventType.lainnya
-          ? (_customTypeController.text.trim().toUpperCase())
-          : _type.toString().split('.').last.toUpperCase();
+      final finalType = _typeController.text.trim();
 
       await supabase.from('events').insert({
         'creator_id': userId,
@@ -156,6 +151,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
         'event_date': eventDateTime,
         'location_region': _locationController.text.trim(),
         'location_name': _venueController.text.trim(),
+        'organize_name': _organizeController.text.trim(), // Nama Organizer
         'ticket_price': _isFree ? 0 : (double.tryParse(_priceController.text) ?? 0),
         'bank_account_info': _isFree ? null : _bankAccountController.text.trim(),
         'poster_url': posterUrl ??
@@ -166,8 +162,9 @@ class _AddEventScreenState extends State<AddEventScreen> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Event berhasil dipublish!'),
             backgroundColor: Colors.green));
-        widget.onEventCreated?.call();
-        _resetForm();
+            
+        _resetForm(); // Kosongkan form setelah sukses
+        widget.onEventCreated?.call(); // Pindah otomatis ke Home dan Refresh Data
       }
     } catch (e) {
       if (mounted) {
@@ -184,17 +181,17 @@ class _AddEventScreenState extends State<AddEventScreen> {
     _titleController.clear();
     _locationController.clear();
     _venueController.clear();
+    _organizeController.clear(); // Reset form organizer
     _priceController.clear();
     _bankAccountController.clear();
     _customCategoryController.clear();
-    _customTypeController.clear();
+    _typeController.clear();
     setState(() {
       _posterImage = null;
       _posterImageBytes = null;
       _selectedDate = null;
       _selectedTime = null;
       _category = EventCategory.kpop;
-      _type = EventType.noraebang;
       _isFree = true;
     });
   }
@@ -204,10 +201,11 @@ class _AddEventScreenState extends State<AddEventScreen> {
     _titleController.dispose();
     _locationController.dispose();
     _venueController.dispose();
+    _organizeController.dispose();
     _priceController.dispose();
     _bankAccountController.dispose();
     _customCategoryController.dispose();
-    _customTypeController.dispose();
+    _typeController.dispose();
     super.dispose();
   }
 
@@ -216,26 +214,16 @@ class _AddEventScreenState extends State<AddEventScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorScheme = Theme.of(context).colorScheme;
 
-    // ── Token warna ──────────────────────────────────────────────────────────
-    final scaffoldBg =
-        isDark ? const Color(0xFF0D0D14) : const Color(0xFFF7F7FB);
+    final scaffoldBg = isDark ? const Color(0xFF0D0D14) : const Color(0xFFF7F7FB);
     final cardBg = isDark ? const Color(0xFF1C1C26) : Colors.white;
     final fieldBg = isDark ? const Color(0xFF252530) : const Color(0xFFF2F2F7);
-    final labelColor =
-        isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+    final labelColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
     final valueColor = isDark ? Colors.white : Colors.black87;
-    final borderColor =
-        isDark ? Colors.white.withOpacity(0.08) : Colors.grey.shade200;
-    final hintColor =
-        isDark ? Colors.grey.shade600 : Colors.grey.shade400;
-    final primaryColor = colorScheme.primary; // ungu dari theme
+    final borderColor = isDark ? Colors.white.withOpacity(0.08) : Colors.grey.shade200;
+    final hintColor = isDark ? Colors.grey.shade600 : Colors.grey.shade400;
+    final primaryColor = colorScheme.primary;
 
-    // ── Input decoration factory ─────────────────────────────────────────────
-    InputDecoration fieldDecor({
-      String? hint,
-      Widget? suffix,
-      Widget? prefix,
-    }) {
+    InputDecoration fieldDecor({String? hint, Widget? suffix, Widget? prefix}) {
       return InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(color: hintColor, fontSize: 14),
@@ -243,8 +231,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
         prefixIcon: prefix,
         filled: true,
         fillColor: fieldBg,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: borderColor),
@@ -268,7 +255,6 @@ class _AddEventScreenState extends State<AddEventScreen> {
       );
     }
 
-    // ── Label atas field ─────────────────────────────────────────────────────
     Widget sectionLabel(String text) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
@@ -281,20 +267,18 @@ class _AddEventScreenState extends State<AddEventScreen> {
           ),
         );
 
-    // ── Tap-able date/time field ─────────────────────────────────────────────
     Widget tapField({
       required String label,
       required String value,
       required VoidCallback onTap,
       required IconData icon,
     }) {
-      final bool filled = value != label; // ada isinya
+      final bool filled = value != label;
       return InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           decoration: BoxDecoration(
             color: fieldBg,
             borderRadius: BorderRadius.circular(14),
@@ -334,33 +318,31 @@ class _AddEventScreenState extends State<AddEventScreen> {
         backgroundColor: scaffoldBg,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back,
-              size: 18,
-              color: isDark ? Colors.white : Colors.black87),
-          onPressed: () => Navigator.maybePop(context),
+          icon: Icon(Icons.arrow_back, size: 18, color: isDark ? Colors.white : Colors.black87),
+          onPressed: () {
+            // Cukup pindah tab, tidak merusak navigasi!
+            if (widget.onBack != null) {
+              widget.onBack!();
+            }
+          },
         ),
       ),
       body: SingleChildScrollView(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Event Name ────────────────────────────────────────────────
               sectionLabel('Event Name'),
               TextFormField(
                 controller: _titleController,
                 style: TextStyle(color: valueColor, fontSize: 14),
-                decoration:
-                    fieldDecor(hint: 'Your Event Name'),
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
+                decoration: fieldDecor(hint: 'Your Event Name'),
+                validator: (v) => v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
               ),
               const SizedBox(height: 20),
 
-              // ── Category ──────────────────────────────────────────────────
               sectionLabel('Category'),
               DropdownButtonFormField<EventCategory>(
                 value: _category,
@@ -368,8 +350,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
                 decoration: fieldDecor(hint: 'Select Category'),
                 dropdownColor: cardBg,
                 borderRadius: BorderRadius.circular(14),
-                icon: Icon(Icons.keyboard_arrow_down_rounded,
-                    color: hintColor),
+                icon: Icon(Icons.keyboard_arrow_down_rounded, color: hintColor),
                 items: EventCategory.values
                     .map((c) => DropdownMenuItem(
                           value: c,
@@ -387,77 +368,52 @@ class _AddEventScreenState extends State<AddEventScreen> {
                   controller: _customCategoryController,
                   style: TextStyle(color: valueColor, fontSize: 14),
                   decoration: fieldDecor(hint: 'Specify category'),
-                  validator: (v) => _category == EventCategory.lainnya &&
-                          (v == null || v.trim().isEmpty)
+                  validator: (v) => _category == EventCategory.lainnya && (v == null || v.trim().isEmpty)
                       ? 'Wajib diisi'
                       : null,
                 ),
               ],
               const SizedBox(height: 20),
 
-              // ── Event Type ────────────────────────────────────────────────
               sectionLabel('Event Type'),
-              DropdownButtonFormField<EventType>(
-                value: _type,
+              TextFormField(
+                controller: _typeController,
                 style: TextStyle(color: valueColor, fontSize: 14),
-                decoration: fieldDecor(hint: 'Select Type'),
-                dropdownColor: cardBg,
-                borderRadius: BorderRadius.circular(14),
-                icon: Icon(Icons.keyboard_arrow_down_rounded,
-                    color: hintColor),
-                items: EventType.values
-                    .map((t) => DropdownMenuItem(
-                          value: t,
-                          child: Text(
-                            t.toString().split('.').last.toUpperCase(),
-                            style: TextStyle(color: valueColor),
-                          ),
-                        ))
-                    .toList(),
-                onChanged: (v) => setState(() => _type = v!),
+                decoration: fieldDecor(hint: 'Contoh: Noraebang, Nobar, Photobooth, dll'),
+                validator: (v) => v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
               ),
-              if (_type == EventType.lainnya) ...[
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _customTypeController,
-                  style: TextStyle(color: valueColor, fontSize: 14),
-                  decoration: fieldDecor(hint: 'Specify type'),
-                  validator: (v) => _type == EventType.lainnya &&
-                          (v == null || v.trim().isEmpty)
-                      ? 'Wajib diisi'
-                      : null,
-                ),
-              ],
               const SizedBox(height: 20),
 
-              // ── Location ──────────────────────────────────────────────────
+              sectionLabel('Nama Penyelenggara'),
+              TextFormField(
+                controller: _organizeController,
+                style: TextStyle(color: valueColor, fontSize: 14),
+                decoration: fieldDecor(hint: 'Enter organize / fanbase name'),
+                validator: (v) => v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
+              ),
+              const SizedBox(height: 20),
+
               sectionLabel('Location / City'),
               TextFormField(
                 controller: _locationController,
                 style: TextStyle(color: valueColor, fontSize: 14),
                 decoration: fieldDecor(
                   hint: 'Select Location',
-                  suffix: Icon(Icons.location_on_outlined,
-                      size: 18, color: hintColor),
+                  suffix: Icon(Icons.location_on_outlined, size: 18, color: hintColor),
                 ),
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
+                validator: (v) => v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
               ),
               const SizedBox(height: 20),
 
-              // ── Venue ─────────────────────────────────────────────────────
               sectionLabel('Venue Details'),
               TextFormField(
                 controller: _venueController,
                 style: TextStyle(color: valueColor, fontSize: 14),
-                decoration:
-                    fieldDecor(hint: 'Enter specific venue name'),
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
+                decoration: fieldDecor(hint: 'Enter specific venue name'),
+                validator: (v) => v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
               ),
               const SizedBox(height: 20),
 
-              // ── Date & Time ───────────────────────────────────────────────
               sectionLabel('Date & Time'),
               Row(
                 children: [
@@ -482,7 +438,6 @@ class _AddEventScreenState extends State<AddEventScreen> {
               ),
               const SizedBox(height: 20),
 
-              // ── Ticket Price ──────────────────────────────────────────────
               sectionLabel('Ticket Price'),
               Container(
                 decoration: BoxDecoration(
@@ -492,14 +447,13 @@ class _AddEventScreenState extends State<AddEventScreen> {
                 ),
                 child: Column(
                   children: [
-                    // Toggle Free / Paid
                     Row(
                       children: [
                         Expanded(
                           child: _TicketTypeButton(
                             label: 'Free',
                             selected: _isFree,
-                            primaryColor: Color.fromARGB(239, 255, 53, 140),
+                            primaryColor: const Color.fromARGB(239, 255, 53, 140),
                             isDark: isDark,
                             onTap: () => setState(() => _isFree = true),
                           ),
@@ -508,15 +462,13 @@ class _AddEventScreenState extends State<AddEventScreen> {
                           child: _TicketTypeButton(
                             label: 'Paid',
                             selected: !_isFree,
-                            primaryColor: Color.fromARGB(239, 255, 53, 140),
+                            primaryColor: const Color.fromARGB(239, 255, 53, 140),
                             isDark: isDark,
                             onTap: () => setState(() => _isFree = false),
                           ),
                         ),
                       ],
                     ),
-
-                    // Price input jika Paid
                     AnimatedSize(
                       duration: const Duration(milliseconds: 250),
                       curve: Curves.easeInOut,
@@ -528,34 +480,27 @@ class _AddEventScreenState extends State<AddEventScreen> {
                                 children: [
                                   TextFormField(
                                     controller: _priceController,
-                                    style:
-                                        TextStyle(color: valueColor, fontSize: 14),
+                                    style: TextStyle(color: valueColor, fontSize: 14),
                                     keyboardType: TextInputType.number,
                                     decoration: fieldDecor(
                                       hint: 'Ticket Price (Rp)',
                                       prefix: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 12),
+                                        padding: const EdgeInsets.symmetric(horizontal: 12),
                                         child: Text('Rp',
                                             style: TextStyle(
-                                                color: primaryColor,
-                                                fontWeight: FontWeight.bold)),
+                                                color: primaryColor, fontWeight: FontWeight.bold)),
                                       ),
                                     ),
-                                    validator: (v) => !_isFree &&
-                                            (v == null || v.trim().isEmpty)
+                                    validator: (v) => !_isFree && (v == null || v.trim().isEmpty)
                                         ? 'Wajib diisi'
                                         : null,
                                   ),
                                   const SizedBox(height: 12),
                                   TextFormField(
                                     controller: _bankAccountController,
-                                    style:
-                                        TextStyle(color: valueColor, fontSize: 14),
-                                    decoration: fieldDecor(
-                                        hint: 'Bank Account Info (e.g. BCA 1234)'),
-                                    validator: (v) => !_isFree &&
-                                            (v == null || v.trim().isEmpty)
+                                    style: TextStyle(color: valueColor, fontSize: 14),
+                                    decoration: fieldDecor(hint: 'Bank Account Info (e.g. BCA 1234)'),
+                                    validator: (v) => !_isFree && (v == null || v.trim().isEmpty)
                                         ? 'Wajib diisi'
                                         : null,
                                   ),
@@ -568,7 +513,6 @@ class _AddEventScreenState extends State<AddEventScreen> {
               ),
               const SizedBox(height: 28),
 
-              // ── Upload Banner ─────────────────────────────────────────────
               GestureDetector(
                 onTap: _pickImage,
                 child: AnimatedContainer(
@@ -578,9 +522,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
                   decoration: BoxDecoration(
                     color: (_posterImage != null || _posterImageBytes != null)
                         ? Colors.transparent
-                        : (isDark
-                            ? primaryColor.withOpacity(0.08)
-                            : primaryColor.withOpacity(0.05)),
+                        : (isDark ? primaryColor.withOpacity(0.08) : primaryColor.withOpacity(0.05)),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: (_posterImage != null || _posterImageBytes != null)
@@ -593,10 +535,8 @@ class _AddEventScreenState extends State<AddEventScreen> {
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(14),
                           child: kIsWeb && _posterImageBytes != null
-                              ? Image.memory(_posterImageBytes!,
-                                  fit: BoxFit.cover, width: double.infinity)
-                              : Image.file(_posterImage!,
-                                  fit: BoxFit.cover, width: double.infinity),
+                              ? Image.memory(_posterImageBytes!, fit: BoxFit.cover, width: double.infinity)
+                              : Image.file(_posterImage!, fit: BoxFit.cover, width: double.infinity),
                         )
                       : Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -607,8 +547,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
                                 color: primaryColor.withOpacity(0.12),
                                 shape: BoxShape.circle,
                               ),
-                              child: Icon(Icons.camera_alt_outlined,
-                                  size: 28, color: primaryColor),
+                              child: Icon(Icons.camera_alt_outlined, size: 28, color: primaryColor),
                             ),
                             const SizedBox(height: 12),
                             Text(
@@ -622,8 +561,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
                             const SizedBox(height: 4),
                             Text(
                               'Tap to choose from gallery',
-                              style: TextStyle(
-                                  color: hintColor, fontSize: 12),
+                              style: TextStyle(color: hintColor, fontSize: 12),
                             ),
                           ],
                         ),
@@ -631,7 +569,6 @@ class _AddEventScreenState extends State<AddEventScreen> {
               ),
               const SizedBox(height: 32),
 
-              // ── Publish Button ────────────────────────────────────────────
               SizedBox(
                 width: double.infinity,
                 height: 54,
@@ -641,21 +578,18 @@ class _AddEventScreenState extends State<AddEventScreen> {
                     foregroundColor: Colors.white,
                     disabledBackgroundColor: primaryColor.withOpacity(0.5),
                     elevation: 0,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                   ),
                   onPressed: _isLoading ? null : _publishEvent,
                   child: _isLoading
                       ? const SizedBox(
                           height: 22,
                           width: 22,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2.5),
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                         )
                       : const Text(
                           'Publish Event',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                 ),
               ),
@@ -668,7 +602,6 @@ class _AddEventScreenState extends State<AddEventScreen> {
   }
 }
 
-// ─── Tombol toggle Free / Paid ────────────────────────────────────────────────
 class _TicketTypeButton extends StatelessWidget {
   final String label;
   final bool selected;
@@ -693,11 +626,7 @@ class _TicketTypeButton extends StatelessWidget {
         margin: const EdgeInsets.all(6),
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: selected
-              ? primaryColor
-              : (isDark
-                  ? Colors.white.withOpacity(0.05)
-                  : Colors.grey.shade100),
+          color: selected ? primaryColor : (isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Center(
@@ -706,9 +635,7 @@ class _TicketTypeButton extends StatelessWidget {
             style: TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 14,
-              color: selected
-                  ? Colors.white
-                  : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+              color: selected ? Colors.white : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
             ),
           ),
         ),

@@ -118,12 +118,31 @@ class EventCard extends StatelessWidget {
                   const SizedBox(height: 12),
                   Row(
                     children: [
+                      Icon(Icons.stars_rounded, size: 14, color: isDark ? Colors.white54 : Colors.grey.shade600),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'By ${event.organizeName}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white54 : Colors.grey.shade600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
                       Icon(Icons.calendar_month_rounded, size: 14, color: colorScheme.primary),
                       const SizedBox(width: 6),
                       Text(
                         '$formattedDate WIB',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 12,
                           fontWeight: FontWeight.w500,
                           color: isDark ? Colors.white70 : Colors.black87,
                         ),
