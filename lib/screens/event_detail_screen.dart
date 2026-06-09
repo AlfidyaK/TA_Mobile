@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/event_model.dart';
 import 'registration_screen.dart';
-import 'view_registrants_screen.dart';
 import '../services/event_service.dart';
 
 class EventDetailScreen extends StatefulWidget {
@@ -18,141 +17,145 @@ class EventDetailScreen extends StatefulWidget {
 class _EventDetailScreenState extends State<EventDetailScreen> {
   @override
   Widget build(BuildContext context) {
-    final formattedDate =
-        DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(widget.event.dateTime);
-    final formattedTime = DateFormat('HH:mm').format(widget.event.dateTime);
+    final formattedDate = DateFormat('dd MMM yyyy • HH:mm', 'id_ID').format(widget.event.dateTime);
     final bool isCompleted = widget.event.dateTime.isBefore(DateTime.now());
     final eventService = EventService();
     final bool isMyEvent = widget.event.userId == eventService.currentUserId;
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0A0A10) : Colors.white;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: bgColor,
       body: CustomScrollView(
         slivers: [
-          // ── SliverAppBar dengan poster ──────────────────────────────
+          // HEADER: Full Image Banner
           SliverAppBar(
-            expandedHeight: 300.0,
+            expandedHeight: 320.0,
             pinned: true,
+            backgroundColor: bgColor,
             elevation: 0,
             iconTheme: const IconThemeData(color: Colors.white),
-            flexibleSpace: FlexibleSpaceBar(
-              centerTitle: false,
-              titlePadding: const EdgeInsets.only(
-                  left: 48.0, right: 16.0, bottom: 16.0),
-              title: Text(
-                widget.event.title,
-                style: const TextStyle(
-                  fontSize: 16.0,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  shadows: [
-                    Shadow(
-                      blurRadius: 8.0,
-                      color: Colors.black,
-                      offset: Offset(2.0, 2.0),
-                    ),
-                  ],
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+            leading: IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(color: Colors.black38, shape: BoxShape.circle),
+                child: const Icon(Icons.arrow_back_rounded, size: 20, color: Colors.white),
               ),
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Hero(
-                    tag: widget.event.id,
-                    child: widget.event.posterUrl.startsWith('assets/')
-                        ? Image.asset(widget.event.posterUrl, fit: BoxFit.cover)
-                        : CachedNetworkImage(
-                            imageUrl: widget.event.posterUrl,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Center(
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                    colorScheme.primary),
-                              ),
-                            ),
-                            errorWidget: (context, url, error) =>
-                                const Icon(Icons.error),
-                          ),
-                  ),
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.transparent,
-                          Colors.black.withOpacity(0.8),
-                        ],
-                        stops: const [0.0, 0.6, 1.0],
+              onPressed: () => Navigator.pop(context),
+            ),
+            actions: [
+              IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.black38, shape: BoxShape.circle),
+                  child: const Icon(Icons.favorite_border_rounded, size: 20, color: Colors.white),
+                ),
+                onPressed: () {},
+              ),
+              IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.black38, shape: BoxShape.circle),
+                  child: const Icon(Icons.share_rounded, size: 20, color: Colors.white),
+                ),
+                onPressed: () {},
+              ),
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              background: Hero(
+                tag: widget.event.id,
+                child: widget.event.posterUrl.startsWith('assets/')
+                    ? Image.asset(widget.event.posterUrl, fit: BoxFit.cover)
+                    : CachedNetworkImage(
+                        imageUrl: widget.event.posterUrl,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(color: Colors.grey.shade200),
+                        errorWidget: (context, url, error) => Container(color: Colors.grey.shade300, child: const Icon(Icons.broken_image)),
                       ),
-                    ),
-                  ),
-                ],
               ),
             ),
           ),
 
-          // ── Detail konten ────────────────────────────────────────────
+          // KONTEN
           SliverToBoxAdapter(
             child: Container(
+              transform: Matrix4.translationValues(0.0, -30.0, 0.0), // Menarik kontainer ke atas overlap gambar
               decoration: BoxDecoration(
-                /// FIX: Background body mengikuti scaffoldBackground theme
-                color: Theme.of(context).scaffoldBackgroundColor,
+                color: bgColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildDetailRow(
-                      context,
-                      Icons.calendar_today,
-                      'Tanggal & Waktu',
-                      '$formattedDate - $formattedTime WIB',
+                    const SizedBox(height: 12), // Memberikan space ekstra di atas label
+                    // Kategori Tag
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        widget.event.category.toString().split('.').last.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.primary,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 16),
-                    _buildDetailRow(
-                      context,
-                      Icons.location_on,
-                      'Lokasi',
-                      '${widget.event.venue}\n${widget.event.location}',
+                    // Judul
+                    Text(
+                      widget.event.title,
+                      style: TextStyle(
+                        fontSize: 24.0,
+                        fontWeight: FontWeight.w900,
+                        height: 1.2,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Informasi Lengkap
+                    _buildIconLabel(
+                      icon: Icons.calendar_month_rounded,
+                      text: '$formattedDate WIB',
+                      colorScheme: colorScheme,
                     ),
                     const SizedBox(height: 16),
-                    _buildDetailRow(
-                      context,
-                      Icons.category,
-                      'Jenis Event',
-                      widget.event.type.toString().split('.').last,
+                    _buildIconLabel(
+                      icon: Icons.location_on_rounded,
+                      text: '${widget.event.venue}, ${widget.event.location}',
+                      colorScheme: colorScheme,
                     ),
                     const SizedBox(height: 16),
-                    _buildDetailRow(
-                      context,
-                      Icons.confirmation_number,
-                      'Tiket',
-                      widget.event.isFree
-                          ? 'Gratis'
-                          : 'Rp ${NumberFormat.decimalPattern('id_ID').format(widget.event.price)}',
-                      valueColor: widget.event.isFree
-                          ? const Color(0xFF00BFA5)
-                          : const Color(0xFFE57373),
+                    _buildIconLabel(
+                      icon: Icons.local_activity_rounded,
+                      text: widget.event.isFree
+                          ? 'IDR 0 (Free Entry)'
+                          : 'IDR ${NumberFormat.decimalPattern('id_ID').format(widget.event.price)}',
+                      colorScheme: colorScheme,
                     ),
-                    if (!widget.event.isFree &&
-                        widget.event.bankAccount != null) ...[
+                    const SizedBox(height: 16),
+                    _buildIconLabel(
+                      icon: Icons.person_pin_circle_rounded,
+                      text: 'Hosted by EventGO',
+                      colorScheme: colorScheme,
+                    ),
+                    
+                    if (!widget.event.isFree && widget.event.bankAccount != null) ...[
                       const SizedBox(height: 16),
-                      _buildDetailRow(
-                        context,
-                        Icons.account_balance_wallet,
-                        'Nomor Rekening (namaBank)',
-                        widget.event.bankAccount!,
+                      _buildIconLabel(
+                         icon: Icons.account_balance_wallet_rounded,
+                         text: 'Transfer ke: ${widget.event.bankAccount}',
+                         colorScheme: colorScheme,
                       ),
                     ],
-                    const SizedBox(height: 32),
                   ],
                 ),
               ),
@@ -161,57 +164,43 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         ],
       ),
 
-      // ── Tombol bawah ─────────────────────────────────────────────────
+      // BOTTOM NAVIGATION BUTTON
       bottomNavigationBar: !isCompleted
           ? Container(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                /// FIX: Background bottom bar mengikuti surface theme
-                color: isDark
-                    ? const Color(0xFF1A1A22)
-                    : Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, -4),
-                  ),
-                ],
+                color: bgColor,
+                border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.grey.shade200)),
               ),
-              child: SizedBox(
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    if (isMyEvent) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              ViewRegistrantsScreen(event: widget.event),
-                        ),
-                      );
-                    } else {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              RegistrationScreen(event: widget.event),
-                        ),
-                      );
-                      if (result == true) Navigator.pop(context, true);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colorScheme.primary,
-                    /// FIX: foregroundColor putih agar teks tombol selalu kelihatan
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                    textStyle: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold),
+              child: SafeArea(
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      if (isMyEvent) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Kelola event bisa dilakukan di menu Profil.')),
+                        );
+                      } else {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => RegistrationScreen(event: widget.event)),
+                        );
+                        if (result == true) Navigator.pop(context, true);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                    ),
+                    child: Text(
+                      isMyEvent ? 'Ini Event Kamu' : 'Register Now',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
                   ),
-                  child: Text(isMyEvent ? 'Lihat Pendaftar' : 'Registrasi Sekarang'),
                 ),
               ),
             )
@@ -219,45 +208,27 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
-  Widget _buildDetailRow(
-    BuildContext context,
-    IconData icon,
-    String title,
-    String content, {
-    Color? valueColor,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
+  Widget _buildIconLabel({required IconData icon, required String text, required ColorScheme colorScheme}) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        /// FIX: Icon warna dari onSurface dengan opacity, bukan Colors.grey[600] hardcode
-        Icon(icon, color: colorScheme.onSurface.withOpacity(0.5), size: 20),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: colorScheme.onSurface.withOpacity(0.05),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: colorScheme.onSurface.withOpacity(0.7), size: 20),
+        ),
         const SizedBox(width: 16),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  /// FIX: Warna judul dari colorScheme.onSurface
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                content,
-                style: TextStyle(
-                  fontSize: 15,
-                  /// FIX: Jika tidak ada valueColor khusus, pakai onSurface dengan opacity
-                  color: valueColor ?? colorScheme.onSurface.withOpacity(0.75),
-                ),
-              ),
-            ],
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 15,
+              color: colorScheme.onSurface.withOpacity(0.85),
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ],

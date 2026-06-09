@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/home_screen.dart';
@@ -10,6 +11,10 @@ import 'screens/login_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('id_ID', null);
+  await Supabase.initialize(
+    url:'https://mnzvuwmiheqomzsxfgar.supabase.co', // Ganti dengan URL dari dashboard Supabase
+    publishableKey:'sb_publishable_Spj6S8aRHUe50Ocsr0WzEg_VQiErEom', // Ganti dengan Anon Key dari dashboard Supabase
+  );
   runApp(
     /// Wrap root dengan ChangeNotifierProvider agar semua widget
     /// di bawah bisa akses ThemeProvider via context.watch/read
@@ -19,6 +24,8 @@ void main() async {
     ),
   );
 }
+
+final supabase = Supabase.instance.client;
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// SCREEN: RegisterScreen - Layar pendaftaran user baru
-/// Validasi: email, password match, dan agreement terms
+/// Terintegrasi langsung dengan Supabase Auth & Tabel Profiles
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -40,66 +41,87 @@ class _RegisterScreenState extends State<RegisterScreen> {
     // Validasi input
     if (name.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Semua field harus diisi'),
-          backgroundColor: Colors.red,
-        ),
+        const SnackBar(content: Text('Semua field harus diisi'), backgroundColor: Colors.red),
       );
       return;
     }
 
     if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password tidak sesuai'),
-          backgroundColor: Colors.red,
-        ),
+        const SnackBar(content: Text('Password tidak sesuai'), backgroundColor: Colors.red),
       );
       return;
     }
 
     if (password.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password minimal 6 karakter'),
-          backgroundColor: Colors.red,
-        ),
+        const SnackBar(content: Text('Password minimal 6 karakter'), backgroundColor: Colors.red),
       );
       return;
     }
 
     if (!_agreeToTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Silahkan setujui syarat dan ketentuan'),
-          backgroundColor: Colors.red,
-        ),
+        const SnackBar(content: Text('Silahkan setujui syarat dan ketentuan'), backgroundColor: Colors.red),
       );
       return;
     }
 
     setState(() => _isLoading = true);
 
-    // Simulasi delay registrasi
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      // Panggil client Supabase
+      final supabase = Supabase.instance.client;
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-      
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Registrasi berhasil! Selamat datang $name'),
-          backgroundColor: Colors.green,
-        ),
+      // 1. Daftarkan user ke sistem Auth Supabase
+      final AuthResponse res = await supabase.auth.signUp(
+        email: email,
+        password: password,
       );
 
-      // Navigate back to login
-      Future.delayed(const Duration(seconds: 1), () {
-        if (mounted) {
-          Navigator.pop(context);
-        }
-      });
+      // 2. Jika auth sukses, simpan data tambahan (Nama) ke tabel 'profiles'
+      if (res.user != null) {
+        await supabase.from('profiles').insert({
+          'id': res.user!.id,
+          'full_name': name,
+          'email': email,
+        });
+      }
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        
+        // Pesan Sukses
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Registrasi berhasil! Selamat datang $name'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Kembali ke halaman login setelah 1.5 detik
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          if (mounted) {
+            Navigator.pop(context);
+          }
+        });
+      }
+    } on AuthException catch (e) {
+      // Menangkap error spesifik dari Supabase (misal: email sudah terdaftar)
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Pendaftaran Gagal: ${e.message}'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      // Menangkap error umum lainnya
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Terjadi kesalahan sistem: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -153,6 +175,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   TextField(
                     controller: _nameController,
                     enabled: !_isLoading,
+                    style: const TextStyle(color: Colors.black87),
                     decoration: InputDecoration(
                       hintText: 'Nama Lengkap',
                       hintStyle: const TextStyle(color: Color(0xFFC9C4D8)),
@@ -178,6 +201,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   TextField(
                     controller: _emailController,
                     enabled: !_isLoading,
+                    style: const TextStyle(color: Colors.black87),
                     decoration: InputDecoration(
                       hintText: 'Email',
                       hintStyle: const TextStyle(color: Color(0xFFC9C4D8)),
@@ -205,6 +229,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _passwordController,
                     enabled: !_isLoading,
                     obscureText: !_isPasswordVisible,
+                    style: const TextStyle(color: Colors.black87),
                     decoration: InputDecoration(
                       hintText: 'Password',
                       hintStyle: const TextStyle(color: Color(0xFFC9C4D8)),
@@ -240,6 +265,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _confirmPasswordController,
                     enabled: !_isLoading,
                     obscureText: !_isConfirmPasswordVisible,
+                    style: const TextStyle(color: Colors.black87),
                     decoration: InputDecoration(
                       hintText: 'Konfirmasi Password',
                       hintStyle: const TextStyle(color: Color(0xFFC9C4D8)),

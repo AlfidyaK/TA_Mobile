@@ -1,10 +1,10 @@
-import 'package:eventgo/services/event_service.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../models/event_model.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import '../models/event_model.dart';
 
 class AddEventScreen extends StatefulWidget {
   final VoidCallback? onEventCreated;
@@ -16,26 +16,72 @@ class AddEventScreen extends StatefulWidget {
 }
 
 class _AddEventScreenState extends State<AddEventScreen> {
-  final _eventService = EventService();
   final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
+  final _locationController = TextEditingController();
+  final _venueController = TextEditingController();
+  final _priceController = TextEditingController();
+  final _bankAccountController = TextEditingController();
+  final _customCategoryController = TextEditingController();
+  final _customTypeController = TextEditingController();
 
-  String _title = '';
+  bool _isLoading = false;
+
   EventCategory _category = EventCategory.kpop;
   EventType _type = EventType.noraebang;
+
   File? _posterImage;
   Uint8List? _posterImageBytes;
+
+  // ── PERBAIKAN: Simpan tanggal & waktu di state, dan gunakan controller
+  //    terpisah agar widget InputDecorator langsung re-render ──
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
-  String _location = '';
-  String _venue = '';
+
   bool _isFree = true;
-  double? _price;
-  String? _bankAccount;
-  String? _registrationLink;
+
+  // Format tanggal ke string yang tampil di field
+  String get _dateLabel {
+    if (_selectedDate == null) return 'DD / MM / YYYY';
+    return '${_selectedDate!.day.toString().padLeft(2, '0')} / '
+        '${_selectedDate!.month.toString().padLeft(2, '0')} / '
+        '${_selectedDate!.year}';
+  }
+
+  // Format waktu ke string yang tampil di field
+  String get _timeLabel {
+    if (_selectedTime == null) return 'HH : MM';
+    final h = _selectedTime!.hour.toString().padLeft(2, '0');
+    final m = _selectedTime!.minute.toString().padLeft(2, '0');
+    return '$h : $m';
+  }
+
+  Future<void> _pickDate() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+    );
+    if (date != null) {
+      setState(() => _selectedDate = date); // setState langsung update UI
+    }
+  }
+
+  Future<void> _pickTime() async {
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (time != null) {
+      setState(() => _selectedTime = time); // setState langsung update UI
+    }
+  }
 
   Future<void> _pickImage() async {
     try {
-      final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
+      final pickedFile =
+          await ImagePicker().pickImage(source: ImageSource.gallery);
       if (pickedFile != null) {
         if (kIsWeb) {
           final bytes = await pickedFile.readAsBytes();
@@ -45,10 +91,124 @@ class _AddEventScreenState extends State<AddEventScreen> {
         }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error picking image: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error picking image: $e')));
+      }
     }
+  }
+
+  Future<void> _publishEvent() async {
+    if (!_formKey.currentState!.validate()) return;
+    _formKey.currentState!.save();
+
+    if (_selectedDate == null || _selectedTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Harap pilih tanggal dan waktu!'),
+          backgroundColor: Colors.red));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final supabase = Supabase.instance.client;
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) throw Exception('User belum login!');
+
+      String? posterUrl;
+      if (_posterImage != null || _posterImageBytes != null) {
+        final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+        if (kIsWeb) {
+          await supabase.storage
+              .from('posters')
+              .uploadBinary(fileName, _posterImageBytes!);
+        } else {
+          await supabase.storage
+              .from('posters')
+              .upload(fileName, _posterImage!);
+        }
+        posterUrl =
+            supabase.storage.from('posters').getPublicUrl(fileName);
+      }
+
+      final eventDateTime = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        _selectedTime!.hour,
+        _selectedTime!.minute,
+      ).toIso8601String();
+
+      final finalCategory = _category == EventCategory.lainnya
+          ? (_customCategoryController.text.trim().toUpperCase())
+          : _category.toString().split('.').last.toUpperCase();
+
+      final finalType = _type == EventType.lainnya
+          ? (_customTypeController.text.trim().toUpperCase())
+          : _type.toString().split('.').last.toUpperCase();
+
+      await supabase.from('events').insert({
+        'creator_id': userId,
+        'title': _titleController.text.trim(),
+        'fandom_category': finalCategory,
+        'event_type': finalType,
+        'event_date': eventDateTime,
+        'location_region': _locationController.text.trim(),
+        'location_name': _venueController.text.trim(),
+        'ticket_price': _isFree ? 0 : (double.tryParse(_priceController.text) ?? 0),
+        'bank_account_info': _isFree ? null : _bankAccountController.text.trim(),
+        'poster_url': posterUrl ??
+            'https://placehold.co/600x800/E8F3F1/4ECDC4?text=Tanpa+Poster',
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Event berhasil dipublish!'),
+            backgroundColor: Colors.green));
+        widget.onEventCreated?.call();
+        _resetForm();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal: $e'), backgroundColor: Colors.red));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _resetForm() {
+    _formKey.currentState?.reset();
+    _titleController.clear();
+    _locationController.clear();
+    _venueController.clear();
+    _priceController.clear();
+    _bankAccountController.clear();
+    _customCategoryController.clear();
+    _customTypeController.clear();
+    setState(() {
+      _posterImage = null;
+      _posterImageBytes = null;
+      _selectedDate = null;
+      _selectedTime = null;
+      _category = EventCategory.kpop;
+      _type = EventType.noraebang;
+      _isFree = true;
+    });
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _locationController.dispose();
+    _venueController.dispose();
+    _priceController.dispose();
+    _bankAccountController.dispose();
+    _customCategoryController.dispose();
+    _customTypeController.dispose();
+    super.dispose();
   }
 
   @override
@@ -56,543 +216,499 @@ class _AddEventScreenState extends State<AddEventScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorScheme = Theme.of(context).colorScheme;
 
-    /// FIX: Warna field ditentukan berdasarkan mode, bukan hardcode putih
-    final fieldFill = isDark ? const Color(0xFF2D1B4E) : Colors.white;
-    final labelColor = isDark ? colorScheme.onSurface.withOpacity(0.7) : const Color(0xFF6B677A);
-    final textColor = isDark ? colorScheme.onSurface : const Color(0xFF1C1C1E);
-    final dropdownBg = isDark ? const Color(0xFF2D1B4E) : Colors.white;
-    final cardBg = isDark ? const Color(0xFF1A1A22) : Colors.white;
+    // ── Token warna ──────────────────────────────────────────────────────────
+    final scaffoldBg =
+        isDark ? const Color(0xFF0D0D14) : const Color(0xFFF7F7FB);
+    final cardBg = isDark ? const Color(0xFF1C1C26) : Colors.white;
+    final fieldBg = isDark ? const Color(0xFF252530) : const Color(0xFFF2F2F7);
+    final labelColor =
+        isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+    final valueColor = isDark ? Colors.white : Colors.black87;
+    final borderColor =
+        isDark ? Colors.white.withOpacity(0.08) : Colors.grey.shade200;
+    final hintColor =
+        isDark ? Colors.grey.shade600 : Colors.grey.shade400;
+    final primaryColor = colorScheme.primary; // ungu dari theme
 
-    /// Helper: InputDecoration konsisten untuk semua field
+    // ── Input decoration factory ─────────────────────────────────────────────
     InputDecoration fieldDecor({
-      required String label,
-      required IconData icon,
-      Color iconColor = const Color(0xFF9D4EDD),
+      String? hint,
+      Widget? suffix,
+      Widget? prefix,
     }) {
       return InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(color: labelColor),
-        prefixIcon: Icon(icon, color: iconColor),
+        hintText: hint,
+        hintStyle: TextStyle(color: hintColor, fontSize: 14),
+        suffixIcon: suffix,
+        prefixIcon: prefix,
         filled: true,
-        fillColor: fieldFill,
+        fillColor: fieldBg,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: colorScheme.primary.withOpacity(0.3)),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: borderColor),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(
-            color: isDark
-                ? colorScheme.primary.withOpacity(0.2)
-                : const Color(0xFFE8D5F2),
-          ),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: borderColor),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: colorScheme.primary, width: 2),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: primaryColor, width: 1.8),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Colors.redAccent),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.8),
+        ),
+      );
+    }
+
+    // ── Label atas field ─────────────────────────────────────────────────────
+    Widget sectionLabel(String text) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            text,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: isDark ? Colors.white70 : Colors.black87,
+            ),
+          ),
+        );
+
+    // ── Tap-able date/time field ─────────────────────────────────────────────
+    Widget tapField({
+      required String label,
+      required String value,
+      required VoidCallback onTap,
+      required IconData icon,
+    }) {
+      final bool filled = value != label; // ada isinya
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            color: fieldBg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: filled ? valueColor : hintColor,
+                  ),
+                ),
+              ),
+              Icon(icon, size: 18, color: filled ? primaryColor : hintColor),
+            ],
+          ),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: scaffoldBg,
       appBar: AppBar(
-        title: const Text('Buat Event Baru',
-            style: TextStyle(fontWeight: FontWeight.bold)),
-        elevation: 0,
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: isDark
-                ? const [Color(0xFF0A0A10), Color(0xFF141420)]
-                : const [Color(0xFFFCFAFF), Color(0xFFF5E6FF)],
+        title: Text(
+          'Create New Event',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 17,
+            color: isDark ? Colors.white : Colors.black87,
           ),
         ),
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: scaffoldBg,
+        surfaceTintColor: Colors.transparent,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back,
+              size: 18,
+              color: isDark ? Colors.white : Colors.black87),
+          onPressed: () => Navigator.maybePop(context),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Event Name ────────────────────────────────────────────────
+              sectionLabel('Event Name'),
+              TextFormField(
+                controller: _titleController,
+                style: TextStyle(color: valueColor, fontSize: 14),
+                decoration:
+                    fieldDecor(hint: 'Your Event Name'),
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
+              ),
+              const SizedBox(height: 20),
+
+              // ── Category ──────────────────────────────────────────────────
+              sectionLabel('Category'),
+              DropdownButtonFormField<EventCategory>(
+                value: _category,
+                style: TextStyle(color: valueColor, fontSize: 14),
+                decoration: fieldDecor(hint: 'Select Category'),
+                dropdownColor: cardBg,
+                borderRadius: BorderRadius.circular(14),
+                icon: Icon(Icons.keyboard_arrow_down_rounded,
+                    color: hintColor),
+                items: EventCategory.values
+                    .map((c) => DropdownMenuItem(
+                          value: c,
+                          child: Text(
+                            c.toString().split('.').last.toUpperCase(),
+                            style: TextStyle(color: valueColor),
+                          ),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _category = v!),
+              ),
+              if (_category == EventCategory.lainnya) ...[
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _customCategoryController,
+                  style: TextStyle(color: valueColor, fontSize: 14),
+                  decoration: fieldDecor(hint: 'Specify category'),
+                  validator: (v) => _category == EventCategory.lainnya &&
+                          (v == null || v.trim().isEmpty)
+                      ? 'Wajib diisi'
+                      : null,
+                ),
+              ],
+              const SizedBox(height: 20),
+
+              // ── Event Type ────────────────────────────────────────────────
+              sectionLabel('Event Type'),
+              DropdownButtonFormField<EventType>(
+                value: _type,
+                style: TextStyle(color: valueColor, fontSize: 14),
+                decoration: fieldDecor(hint: 'Select Type'),
+                dropdownColor: cardBg,
+                borderRadius: BorderRadius.circular(14),
+                icon: Icon(Icons.keyboard_arrow_down_rounded,
+                    color: hintColor),
+                items: EventType.values
+                    .map((t) => DropdownMenuItem(
+                          value: t,
+                          child: Text(
+                            t.toString().split('.').last.toUpperCase(),
+                            style: TextStyle(color: valueColor),
+                          ),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _type = v!),
+              ),
+              if (_type == EventType.lainnya) ...[
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _customTypeController,
+                  style: TextStyle(color: valueColor, fontSize: 14),
+                  decoration: fieldDecor(hint: 'Specify type'),
+                  validator: (v) => _type == EventType.lainnya &&
+                          (v == null || v.trim().isEmpty)
+                      ? 'Wajib diisi'
+                      : null,
+                ),
+              ],
+              const SizedBox(height: 20),
+
+              // ── Location ──────────────────────────────────────────────────
+              sectionLabel('Location / City'),
+              TextFormField(
+                controller: _locationController,
+                style: TextStyle(color: valueColor, fontSize: 14),
+                decoration: fieldDecor(
+                  hint: 'Select Location',
+                  suffix: Icon(Icons.location_on_outlined,
+                      size: 18, color: hintColor),
+                ),
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
+              ),
+              const SizedBox(height: 20),
+
+              // ── Venue ─────────────────────────────────────────────────────
+              sectionLabel('Venue Details'),
+              TextFormField(
+                controller: _venueController,
+                style: TextStyle(color: valueColor, fontSize: 14),
+                decoration:
+                    fieldDecor(hint: 'Enter specific venue name'),
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'Wajib diisi' : null,
+              ),
+              const SizedBox(height: 20),
+
+              // ── Date & Time ───────────────────────────────────────────────
+              sectionLabel('Date & Time'),
+              Row(
                 children: [
-                  // ── Nama Event ───────────────────────────────────────
-                  TextFormField(
-                    style: TextStyle(color: textColor),
-                    decoration: fieldDecor(
-                      label: 'Nama Event',
-                      icon: Icons.title_rounded,
-                    ),
-                    validator: (v) =>
-                        v == null || v.isEmpty ? 'Kuy isi judulnya dulu!' : null,
-                    onSaved: (v) => _title = v!,
-                  ),
-                  const SizedBox(height: 20),
-
-                  // ── Kategori Fandom ──────────────────────────────────
-                  DropdownButtonFormField<EventCategory>(
-                    value: _category,
-                    style: TextStyle(
-                      color: textColor,
-                      fontFamily: 'Poppins',
-                      fontWeight: FontWeight.w600,
-                    ),
-                    decoration: fieldDecor(
-                      label: 'Kategori Fandom',
-                      icon: Icons.category_rounded,
-                      iconColor: const Color(0xFF00BFA5),
-                    ),
-                    items: EventCategory.values.map((c) {
-                      return DropdownMenuItem(
-                        value: c,
-                        child: Text(c.toString().split('.').last.toUpperCase()),
-                      );
-                    }).toList(),
-                    onChanged: (v) => setState(() => _category = v!),
-                    icon: Icon(Icons.keyboard_arrow_down_rounded,
-                        color: colorScheme.primary),
-                    dropdownColor: dropdownBg,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  if (_category == EventCategory.lainnya)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 20.0),
-                      child: TextFormField(
-                        style: TextStyle(color: textColor),
-                        decoration: fieldDecor(
-                          label: 'Sebutkan Kategori Lainnya',
-                          icon: Icons.edit_note_rounded,
-                          iconColor: const Color(0xFFE57373),
-                        ),
-                        validator: (v) => v == null || v.isEmpty
-                            ? 'Diisi yaa untuk spesifikasinya'
-                            : null,
-                      ),
-                    ),
-                  const SizedBox(height: 20),
-
-                  // ── Jenis Event ──────────────────────────────────────
-                  DropdownButtonFormField<EventType>(
-                    value: _type,
-                    style: TextStyle(
-                      color: textColor,
-                      fontFamily: 'Poppins',
-                      fontWeight: FontWeight.w600,
-                    ),
-                    decoration: fieldDecor(
-                      label: 'Jenis Event',
-                      icon: Icons.event_rounded,
-                      iconColor: const Color(0xFF00D9FF),
-                    ),
-                    items: EventType.values.map((t) {
-                      return DropdownMenuItem(
-                        value: t,
-                        child: Text(t.toString().split('.').last.toUpperCase()),
-                      );
-                    }).toList(),
-                    onChanged: (v) => setState(() => _type = v!),
-                    icon: Icon(Icons.keyboard_arrow_down_rounded,
-                        color: colorScheme.primary),
-                    dropdownColor: dropdownBg,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  if (_type == EventType.lainnya)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 20.0),
-                      child: TextFormField(
-                        style: TextStyle(color: textColor),
-                        decoration: fieldDecor(
-                          label: 'Sebutkan Jenis Event Lainnya',
-                          icon: Icons.edit_note_rounded,
-                          iconColor: const Color(0xFFE57373),
-                        ),
-                        validator: (v) => v == null || v.isEmpty
-                            ? 'Diisi yaa untuk jenis eventnya'
-                            : null,
-                      ),
-                    ),
-                  const SizedBox(height: 24),
-
-                  // ── Upload Poster ────────────────────────────────────
-                  GestureDetector(
-                    onTap: _pickImage,
-                    child: Container(
-                      width: double.infinity,
-                      height: 280,
-                      decoration: BoxDecoration(
-                        /// FIX: Background poster ikut mode
-                        color: cardBg,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: colorScheme.primary.withOpacity(0.3),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: (_posterImage != null || _posterImageBytes != null)
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(20),
-                              child: kIsWeb && _posterImageBytes != null
-                                  ? Image.memory(_posterImageBytes!,
-                                      fit: BoxFit.cover, width: double.infinity)
-                                  : Image.file(_posterImage!,
-                                      fit: BoxFit.cover, width: double.infinity),
-                            )
-                          : Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.add_a_photo_rounded,
-                                    size: 50, color: colorScheme.primary),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Upload Poster Kekinianmu!',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    /// FIX: Teks upload pakai onSurface dengan opacity
-                                    color: colorScheme.onSurface.withOpacity(0.5),
-                                  ),
-                                ),
-                              ],
-                            ),
+                  Expanded(
+                    child: tapField(
+                      label: 'DD / MM / YYYY',
+                      value: _dateLabel,
+                      onTap: _pickDate,
+                      icon: Icons.calendar_today_outlined,
                     ),
                   ),
-                  const SizedBox(height: 24),
-
-                  // ── Tanggal & Waktu ──────────────────────────────────
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: cardBg,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: colorScheme.primary.withOpacity(0.2),
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? colorScheme.primary.withOpacity(0.15)
-                                    : const Color(0xFFE6E0F8),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Icon(Icons.calendar_month_rounded,
-                                  color: Color(0xFF00BFA5)),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Text(
-                                _selectedDate == null
-                                    ? 'Kapan nih eventnya?'
-                                    : 'Tanggal: ${_selectedDate!.toLocal()}'.split(' ')[0],
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  /// FIX: Warna teks tanggal tidak hardcode
-                                  color: _selectedDate == null
-                                      ? colorScheme.onSurface.withOpacity(0.4)
-                                      : colorScheme.onSurface,
-                                ),
-                              ),
-                            ),
-                            TextButton(
-                              style: TextButton.styleFrom(
-                                backgroundColor: colorScheme.primary.withOpacity(0.1),
-                                foregroundColor: colorScheme.primary,
-                              ),
-                              onPressed: () async {
-                                final date = await showDatePicker(
-                                  context: context,
-                                  initialDate: DateTime.now(),
-                                  firstDate: DateTime.now(),
-                                  lastDate: DateTime(2100),
-                                );
-                                if (date != null) setState(() => _selectedDate = date);
-                              },
-                              child: const Text('Pilih Tanggal',
-                                  style: TextStyle(fontWeight: FontWeight.bold)),
-                            ),
-                          ],
-                        ),
-                        Divider(height: 32, color: colorScheme.onSurface.withOpacity(0.1)),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? colorScheme.primary.withOpacity(0.15)
-                                    : const Color(0xFFE6E0F8),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Icon(Icons.access_time_filled_rounded,
-                                  color: colorScheme.primary),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Text(
-                                _selectedTime == null
-                                    ? 'Jam berapa mulai?'
-                                    : 'Waktu: ${_selectedTime!.format(context)}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: _selectedTime == null
-                                      ? colorScheme.onSurface.withOpacity(0.4)
-                                      : colorScheme.onSurface,
-                                ),
-                              ),
-                            ),
-                            TextButton(
-                              style: TextButton.styleFrom(
-                                backgroundColor: colorScheme.primary.withOpacity(0.1),
-                                foregroundColor: colorScheme.primary,
-                              ),
-                              onPressed: () async {
-                                final time = await showTimePicker(
-                                  context: context,
-                                  initialTime: TimeOfDay.now(),
-                                );
-                                if (time != null) setState(() => _selectedTime = time);
-                              },
-                              child: const Text('Pilih Waktu',
-                                  style: TextStyle(fontWeight: FontWeight.bold)),
-                            ),
-                          ],
-                        ),
-                      ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: tapField(
+                      label: 'HH : MM',
+                      value: _timeLabel,
+                      onTap: _pickTime,
+                      icon: Icons.access_time_rounded,
                     ),
                   ),
-                  const SizedBox(height: 20),
-
-                  // ── Lokasi & Venue ───────────────────────────────────
-                  TextFormField(
-                    style: TextStyle(color: textColor),
-                    decoration: fieldDecor(
-                      label: 'Kota / Daerah',
-                      icon: Icons.location_on_rounded,
-                      iconColor: const Color(0xFFE57373),
-                    ),
-                    validator: (v) => v == null || v.isEmpty
-                        ? 'Lokasi ngga boleh kosong bos!'
-                        : null,
-                    onSaved: (v) => _location = v!,
-                  ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    style: TextStyle(color: textColor),
-                    decoration: fieldDecor(
-                      label: 'Nama Venue',
-                      icon: Icons.store_rounded,
-                    ),
-                    validator: (v) => v == null || v.isEmpty
-                        ? 'Tempatnya di mana nih?'
-                        : null,
-                    onSaved: (v) => _venue = v!,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // ── Tipe Tiket ───────────────────────────────────────
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: cardBg,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: colorScheme.primary.withOpacity(0.2),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.local_activity_rounded,
-                            color: Color(0xFF00BFA5)),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Tipe Tiket:',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: colorScheme.onSurface,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              Radio<bool>(
-                                value: true,
-                                groupValue: _isFree,
-                                activeColor: const Color(0xFF00BFA5),
-                                onChanged: (v) => setState(() => _isFree = v!),
-                              ),
-                              Text('Gratis',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: colorScheme.onSurface,
-                                  )),
-                              Radio<bool>(
-                                value: false,
-                                groupValue: _isFree,
-                                activeColor: colorScheme.primary,
-                                onChanged: (v) => setState(() => _isFree = v!),
-                              ),
-                              Text('Berbayar',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: colorScheme.onSurface,
-                                  )),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // ── Harga & Rekening (jika berbayar) ─────────────────
-                  if (!_isFree) ...[
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 20.0),
-                      child: TextFormField(
-                        style: TextStyle(color: textColor),
-                        decoration: fieldDecor(
-                          label: 'Harga Tiket (Rp) 💰',
-                          icon: Icons.payments_rounded,
-                        ),
-                        keyboardType: TextInputType.number,
-                        validator: (v) {
-                          if (!_isFree && (v == null || v.isEmpty)) {
-                            return 'Masukin aja tebak harganya';
-                          }
-                          return null;
-                        },
-                        onSaved: (v) => _price = double.tryParse(v ?? '0'),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 20.0),
-                      child: TextFormField(
-                        style: TextStyle(color: textColor),
-                        decoration: fieldDecor(
-                          label: 'Nomor Rekening (namaBank)',
-                          icon: Icons.account_balance_wallet_rounded,
-                          iconColor: const Color(0xFF00BFA5),
-                        ),
-                        validator: (v) {
-                          if (!_isFree && (v == null || v.isEmpty)) {
-                            return 'Nomor rekening wajib diisi';
-                          }
-                          return null;
-                        },
-                        onSaved: (v) => _bankAccount = v,
-                      ),
-                    ),
-                  ],
-
-                  const SizedBox(height: 32),
-
-                  // ── Tombol Submit ────────────────────────────────────
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: colorScheme.primary,
-                        /// FIX: foregroundColor putih agar teks tombol kelihatan
-                        foregroundColor: Colors.white,
-                        elevation: 8,
-                        shadowColor: colorScheme.primary.withOpacity(0.5),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16)),
-                      ),
-                      onPressed: () {
-                        if (_formKey.currentState!.validate()) {
-                          _formKey.currentState!.save();
-
-                          if (_selectedDate == null || _selectedTime == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text(
-                                    'Harap pilih tanggal dan waktu event ya! 🙏'),
-                                behavior: SnackBarBehavior.floating,
-                                backgroundColor: const Color(0xFFE57373),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10)),
-                              ),
-                            );
-                            return;
-                          }
-
-                          final newEvent = Event(
-                            id: DateTime.now().millisecondsSinceEpoch.toString(),
-                            title: _title,
-                            category: _category,
-                            type: _type,
-                            posterUrl: _posterImage?.path ??
-                                'https://placehold.co/600x800/E8F3F1/4ECDC4?text=Foto+Keren+Nyusul',
-                            dateTime: DateTime(
-                              _selectedDate!.year,
-                              _selectedDate!.month,
-                              _selectedDate!.day,
-                              _selectedTime!.hour,
-                              _selectedTime!.minute,
-                            ),
-                            location: _location,
-                            venue: _venue,
-                            isFree: _isFree,
-                            price: _isFree ? 0 : _price,
-                            bankAccount: _isFree ? null : _bankAccount,
-                            registrationLink: _registrationLink,
-                            userId: _eventService.currentUserId,
-                            isCompleted: false,
-                          );
-                          _eventService.createEvent(newEvent);
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('Yay! Event berhasil dibuat!'),
-                              backgroundColor: const Color(0xFF00BFA5),
-                              behavior: SnackBarBehavior.floating,
-                              shape: const RoundedRectangleBorder(
-                                  borderRadius:
-                                      BorderRadius.all(Radius.circular(10))),
-                            ),
-                          );
-
-                          widget.onEventCreated?.call();
-
-                          _formKey.currentState?.reset();
-                          setState(() {
-                            _title = '';
-                            _posterImage = null;
-                            _posterImageBytes = null;
-                            _selectedDate = null;
-                            _selectedTime = null;
-                            _location = '';
-                            _venue = '';
-                          });
-                        }
-                      },
-                      child: const Text(
-                        'Buat Event Sekarang',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
                 ],
               ),
+              const SizedBox(height: 20),
+
+              // ── Ticket Price ──────────────────────────────────────────────
+              sectionLabel('Ticket Price'),
+              Container(
+                decoration: BoxDecoration(
+                  color: fieldBg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Column(
+                  children: [
+                    // Toggle Free / Paid
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _TicketTypeButton(
+                            label: 'Free',
+                            selected: _isFree,
+                            primaryColor: Color.fromARGB(239, 255, 53, 140),
+                            isDark: isDark,
+                            onTap: () => setState(() => _isFree = true),
+                          ),
+                        ),
+                        Expanded(
+                          child: _TicketTypeButton(
+                            label: 'Paid',
+                            selected: !_isFree,
+                            primaryColor: Color.fromARGB(239, 255, 53, 140),
+                            isDark: isDark,
+                            onTap: () => setState(() => _isFree = false),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    // Price input jika Paid
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeInOut,
+                      child: _isFree
+                          ? const SizedBox.shrink()
+                          : Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                              child: Column(
+                                children: [
+                                  TextFormField(
+                                    controller: _priceController,
+                                    style:
+                                        TextStyle(color: valueColor, fontSize: 14),
+                                    keyboardType: TextInputType.number,
+                                    decoration: fieldDecor(
+                                      hint: 'Ticket Price (Rp)',
+                                      prefix: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12),
+                                        child: Text('Rp',
+                                            style: TextStyle(
+                                                color: primaryColor,
+                                                fontWeight: FontWeight.bold)),
+                                      ),
+                                    ),
+                                    validator: (v) => !_isFree &&
+                                            (v == null || v.trim().isEmpty)
+                                        ? 'Wajib diisi'
+                                        : null,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextFormField(
+                                    controller: _bankAccountController,
+                                    style:
+                                        TextStyle(color: valueColor, fontSize: 14),
+                                    decoration: fieldDecor(
+                                        hint: 'Bank Account Info (e.g. BCA 1234)'),
+                                    validator: (v) => !_isFree &&
+                                            (v == null || v.trim().isEmpty)
+                                        ? 'Wajib diisi'
+                                        : null,
+                                  ),
+                                ],
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 28),
+
+              // ── Upload Banner ─────────────────────────────────────────────
+              GestureDetector(
+                onTap: _pickImage,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: double.infinity,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    color: (_posterImage != null || _posterImageBytes != null)
+                        ? Colors.transparent
+                        : (isDark
+                            ? primaryColor.withOpacity(0.08)
+                            : primaryColor.withOpacity(0.05)),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: (_posterImage != null || _posterImageBytes != null)
+                          ? primaryColor.withOpacity(0.5)
+                          : primaryColor.withOpacity(0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: (_posterImage != null || _posterImageBytes != null)
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: kIsWeb && _posterImageBytes != null
+                              ? Image.memory(_posterImageBytes!,
+                                  fit: BoxFit.cover, width: double.infinity)
+                              : Image.file(_posterImage!,
+                                  fit: BoxFit.cover, width: double.infinity),
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: primaryColor.withOpacity(0.12),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.camera_alt_outlined,
+                                  size: 28, color: primaryColor),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Upload Event Banner',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: primaryColor,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Tap to choose from gallery',
+                              style: TextStyle(
+                                  color: hintColor, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // ── Publish Button ────────────────────────────────────────────
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: primaryColor.withOpacity(0.5),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30)),
+                  ),
+                  onPressed: _isLoading ? null : _publishEvent,
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2.5),
+                        )
+                      : const Text(
+                          'Publish Event',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Tombol toggle Free / Paid ────────────────────────────────────────────────
+class _TicketTypeButton extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color primaryColor;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _TicketTypeButton({
+    required this.label,
+    required this.selected,
+    required this.primaryColor,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.all(6),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: selected
+              ? primaryColor
+              : (isDark
+                  ? Colors.white.withOpacity(0.05)
+                  : Colors.grey.shade100),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: selected
+                  ? Colors.white
+                  : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
             ),
           ),
         ),

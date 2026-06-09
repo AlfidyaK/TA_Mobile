@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'register_screen.dart';
 
 /// SCREEN: LoginScreen - Layar autentikasi user
-/// Menampilkan form login dengan validation dummy credentials
+/// Menampilkan form login terintegrasi dengan Supabase Auth
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -18,10 +19,6 @@ class _LoginScreenState extends State<LoginScreen> {
   // State variables
   bool _isLoading = false;                    // Indikator proses login
   bool _isPasswordVisible = false;            // Visibility toggle password
-
-  // Dummy credentials (placeholder)
-  static const String _dummyEmail = 'user@eventgo.com';
-  static const String _dummyPassword = 'password123';
 
   @override
   void dispose() {
@@ -47,20 +44,38 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
 
-    // Simulasi delay login
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      // Panggil client Supabase
+      final supabase = Supabase.instance.client;
 
-    // Validasi dummy credentials
-    if (email == _dummyEmail && password == _dummyPassword) {
-      if (mounted) {
+      // Coba login dengan email dan password
+      final AuthResponse res = await supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      // Jika berhasil mendapatkan sesi (berhasil login)
+      if (mounted && res.session != null) {
         Navigator.of(context).pushReplacementNamed('/home');
       }
-    } else {
+    } on AuthException catch (e) {
+      // Menangkap error spesifik autentikasi (password salah, email tak terdaftar)
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Email atau password salah'),
+            content: Text('Login gagal: Email atau password salah'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      // Menangkap error umum (koneksi terputus, dll)
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Terjadi kesalahan sistem. Coba lagi nanti.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -109,6 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextField(
                     controller: _emailController,
                     enabled: !_isLoading,
+                    style: const TextStyle(color: Colors.black87),
                     decoration: InputDecoration(
                       hintText: 'Email',
                       hintStyle: const TextStyle(color: Color(0xFFC9C4D8)),
@@ -136,6 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: _passwordController,
                     enabled: !_isLoading,
                     obscureText: !_isPasswordVisible,
+                    style: const TextStyle(color: Colors.black87),
                     decoration: InputDecoration(
                       hintText: 'Password',
                       hintStyle: const TextStyle(color: Color(0xFFC9C4D8)),

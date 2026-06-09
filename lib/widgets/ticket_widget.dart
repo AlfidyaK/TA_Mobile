@@ -4,44 +4,62 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../models/event_model.dart';
 
 /// WIDGET: TicketWidget - Kartu tiket digital event
-/// Menampilkan: booking ID, QR code, dan info event
+/// Terkoneksi dengan Database & Responsif Terhadap Mode Terang/Gelap
 class TicketWidget extends StatelessWidget {
-  final Event event;                      // Event untuk tiket
+  final Event event;
+  final String registrationId; // ID Registrasi asli dari Supabase
+  final String status;         // 'pending' atau 'success'
 
-  const TicketWidget({super.key, required this.event});
+  const TicketWidget({
+    super.key, 
+    required this.event,
+    required this.registrationId,
+    required this.status,
+  });
 
   @override
   Widget build(BuildContext context) {
-    // Generate booking ID unik
-    final safeId = event.id.length >= 4
-        ? event.id.substring(0, 4)
-        : event.id.padLeft(4, '0');
-    final bookingId =
-        'EVG-$safeId-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}'
-            .toUpperCase();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    // Warna dinamis mengikuti tema
+    final ticketBg = isDark ? const Color(0xFF1E1E28) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF1C1C1E);
+    final subTextColor = isDark ? Colors.white60 : Colors.black54;
+    final shadowColor = isDark ? Colors.black.withOpacity(0.5) : Colors.black.withOpacity(0.12);
+    final dashColor = isDark ? Colors.white24 : Colors.grey.shade400;
+
+    // Memendekkan UUID Supabase menjadi 8 karakter untuk tampilan Booking ID
+    final shortId = registrationId.split('-').first.toUpperCase();
+    final bookingId = 'EVG-$shortId';
+    
     final currencyFormatter = NumberFormat.currency(
       locale: 'id_ID',
       symbol: 'Rp ',
       decimalDigits: 0,
     );
 
+    // Cek status tiket
+    final isVerified = status.toLowerCase() == 'success' || event.isFree;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ticketBg,
         borderRadius: BorderRadius.circular(16.0),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: shadowColor,
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+            spreadRadius: 2, // Memberikan efek timbul yang lebih jelas
           ),
         ],
       ),
       child: ClipPath(
         clipper: TicketClipper(),
         child: Container(
-          color: Colors.white,
+          color: ticketBg,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -52,19 +70,19 @@ class TicketWidget extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(8.0),
+                      borderRadius: BorderRadius.circular(12.0),
                       child: Image.network(
                         event.posterUrl,
-                        width: 80,
-                        height: 110,
+                        width: 85,
+                        height: 115,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) => Container(
-                          width: 80,
-                          height: 110,
-                          color: Colors.grey[200],
-                          child: const Icon(
+                          width: 85,
+                          height: 115,
+                          color: isDark ? Colors.white12 : Colors.grey[200],
+                          child: Icon(
                             Icons.image_not_supported,
-                            color: Colors.grey,
+                            color: isDark ? Colors.white38 : Colors.grey,
                           ),
                         ),
                       ),
@@ -76,42 +94,56 @@ class TicketWidget extends StatelessWidget {
                         children: [
                           Text(
                             event.title,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: textColor,
+                              height: 1.2,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            event.type.toString().split('.').last.toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Colors.black54,
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              event.type.toString().split('.').last.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.primary,
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            DateFormat(
-                              'EEE, dd MMM | HH:mm',
-                              'id_ID',
-                            ).format(event.dateTime),
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Colors.black87,
-                            ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Icon(Icons.calendar_month_rounded, size: 14, color: subTextColor),
+                              const SizedBox(width: 4),
+                              Text(
+                                DateFormat('EEE, dd MMM | HH:mm', 'id_ID').format(event.dateTime),
+                                style: TextStyle(fontSize: 13, color: subTextColor, fontWeight: FontWeight.w500),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            event.venue,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Colors.black54,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          Row(
+                            children: [
+                              Icon(Icons.location_on_rounded, size: 14, color: subTextColor),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  event.venue,
+                                  style: TextStyle(fontSize: 13, color: subTextColor),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -120,37 +152,58 @@ class TicketWidget extends StatelessWidget {
                 ),
               ),
 
-              // --- Banner ---
+              // --- Banner Status Tiket ---
               Container(
                 width: double.infinity,
-                color: Colors.grey.shade100,
-                padding: const EdgeInsets.symmetric(vertical: 10.0),
+                color: isVerified 
+                    ? (isDark ? Colors.green.withOpacity(0.2) : Colors.green.shade50)
+                    : (isDark ? Colors.orange.withOpacity(0.2) : Colors.orange.shade50),
+                padding: const EdgeInsets.symmetric(vertical: 12.0),
                 alignment: Alignment.center,
-                child: const Text(
-                  'Tap for support, details & more actions',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.black54,
-                    fontWeight: FontWeight.w500,
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      isVerified ? Icons.check_circle_rounded : Icons.hourglass_top_rounded,
+                      size: 16,
+                      color: isVerified ? Colors.green.shade500 : Colors.orange.shade600,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      isVerified 
+                          ? 'TIKET AKTIF & TERVERIFIKASI' 
+                          : 'MENUNGGU VERIFIKASI PEMBAYARAN',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isVerified 
+                            ? (isDark ? Colors.greenAccent : Colors.green.shade700) 
+                            : (isDark ? Colors.orangeAccent : Colors.orange.shade800),
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
               // --- QR Code and Booking Info ---
               Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(20.0),
                 child: Row(
                   children: [
+                    // Kotak QR Code
                     Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.white, // QR Code harus selalu punya background putih agar bisa discan
+                        border: Border.all(color: Colors.grey.shade300, width: 2),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: QrImageView(
-                        data: 'Event: ${event.title}\nBooking ID: $bookingId',
+                        data: '{"event_id": "${event.id}", "reg_id": "$registrationId"}',
                         version: QrVersions.auto,
                         size: 90.0,
+                        foregroundColor: isVerified ? Colors.black : Colors.black26, 
                       ),
                     ),
                     const SizedBox(width: 24),
@@ -158,40 +211,46 @@ class TicketWidget extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          const Text(
+                          Text(
                             '1 Ticket(s)',
                             style: TextStyle(
                               fontSize: 13,
-                              color: Colors.black54,
+                              color: subTextColor,
                             ),
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            event.category
-                                .toString()
-                                .split('.')
-                                .last
-                                .toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1,
+                            event.category.toString().split('.').last.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: colorScheme.primary,
+                              letterSpacing: 1.5,
                             ),
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            event.isFree ? 'FREE ENTRY' : 'REGULAR TICKET',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey,
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.white12 : Colors.black.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              event.isFree ? 'FREE ENTRY' : 'REGULAR TICKET',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: textColor,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 12),
                           Text(
                             'BOOKING ID: $bookingId',
-                            style: const TextStyle(
-                              fontSize: 11,
+                            style: TextStyle(
+                              fontSize: 12,
                               fontWeight: FontWeight.bold,
+                              color: textColor,
                             ),
                           ),
                         ],
@@ -202,45 +261,45 @@ class TicketWidget extends StatelessWidget {
               ),
 
               // --- Cancellation Notice ---
-              const Padding(
-                padding: EdgeInsets.only(bottom: 16.0),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
                 child: Text(
                   'Cancellation not available for this venue',
-                  style: TextStyle(fontSize: 12, color: Colors.black45),
+                  style: TextStyle(fontSize: 11, color: subTextColor),
                 ),
               ),
 
               // --- Dashed Divider ---
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20.0),
-                child: DashedDivider(color: Colors.grey),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: DashedDivider(color: dashColor),
               ),
 
               // --- Total Amount ---
               Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 20.0,
-                  vertical: 16.0,
+                  horizontal: 24.0,
+                  vertical: 20.0,
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Total Amount',
+                    Text(
+                      'Total Pembayaran',
                       style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 16,
-                        color: Colors.black87,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        color: subTextColor,
                       ),
                     ),
                     Text(
                       event.isFree
                           ? 'Gratis'
                           : currencyFormatter.format(event.price),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: Colors.black87,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                        color: textColor,
                       ),
                     ),
                   ],
@@ -250,30 +309,30 @@ class TicketWidget extends StatelessWidget {
               // --- Find Venue Button ---
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 14.0),
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: isDark ? const Color(0xFF2A2A36) : const Color(0xFFF8F8FA),
                   borderRadius: const BorderRadius.only(
                     bottomLeft: Radius.circular(16.0),
                     bottomRight: Radius.circular(16.0),
                   ),
-                  border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                  border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.grey.shade200)),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons.location_on_outlined,
+                      Icons.map_outlined,
                       size: 18,
-                      color: Colors.black54,
+                      color: colorScheme.primary,
                     ),
-                    SizedBox(width: 4),
+                    const SizedBox(width: 6),
                     Text(
-                      'Find Venue',
+                      'Lihat Lokasi Venue',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w500,
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
@@ -287,6 +346,10 @@ class TicketWidget extends StatelessWidget {
   }
 }
 
+// ============================================================================
+// WIDGET BANTUAN DI BAWAH INI TETAP SAMA
+// ============================================================================
+
 class DashedDivider extends StatelessWidget {
   const DashedDivider({super.key, this.height = 1, this.color = Colors.grey});
 
@@ -298,7 +361,7 @@ class DashedDivider extends StatelessWidget {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final boxWidth = constraints.constrainWidth();
-        const dashWidth = 5.0;
+        const dashWidth = 6.0;
         final dashHeight = height;
         final dashCount = (boxWidth / (2 * dashWidth)).floor();
         return Flex(
@@ -322,8 +385,8 @@ class TicketClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     final path = Path();
     const radius = 16.0;
-    const notchRadius = 12.0;
-    final notchY = size.height - 110.0;
+    const notchRadius = 14.0; // Sedikit dibesarkan agar lekukan tiket lebih tegas
+    final notchY = size.height - 125.0; // Disesuaikan dengan tinggi baru area bawah
 
     path.moveTo(0, radius);
     path.arcToPoint(

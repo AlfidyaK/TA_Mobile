@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 /// Menyimpan pilihan tema user (light/dark/system) secara independen
 /// dari setting device, menggunakan ChangeNotifier agar UI auto-rebuild
 class ThemeProvider extends ChangeNotifier {
-  ThemeMode _themeMode = ThemeMode.system;
+  ThemeMode _themeMode = ThemeMode.light;
 
   ThemeMode get themeMode => _themeMode;
 

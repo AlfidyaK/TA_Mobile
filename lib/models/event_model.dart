@@ -59,4 +59,43 @@ class Event {
     this.isCompleted = false,
     this.bankAccount,
   });
+  factory Event.fromSupabase(Map<String, dynamic> data) {
+  // Parse EventCategory dari string
+  EventCategory parseCategory(String? val) {
+    switch (val?.toLowerCase()) {
+      case 'kpop': return EventCategory.kpop;
+      case 'jepang': return EventCategory.jepang;
+      default: return EventCategory.lainnya;
+    }
+  }
+
+  // Parse EventType dari string
+  EventType parseType(String? val) {
+    switch (val?.toLowerCase()) {
+      case 'noraebang': return EventType.noraebang;
+      case 'nobar': return EventType.nobar;
+      case 'photobooth': return EventType.photobooth;
+      case 'birthdayevent': return EventType.birthdayEvent;
+      case 'konser': return EventType.konser;
+      default: return EventType.lainnya;
+    }
+  }
+
+  final price = (data['ticket_price'] as num?)?.toDouble() ?? 0;
+
+  return Event(
+    id: data['id'].toString(),
+    title: data['title'] ?? '',
+    category: parseCategory(data['fandom_category']),
+    type: parseType(data['event_type']),
+    posterUrl: data['poster_url'] ?? 'https://placehold.co/600x800',
+    dateTime: DateTime.parse(data['event_date']),
+    location: data['location_region'] ?? '',
+    venue: data['location_name'] ?? '',
+    isFree: price == 0,
+    price: price > 0 ? price : null,
+    bankAccount: data['bank_account_info'],
+    userId: data['creator_id'] ?? '',
+  );
+}
 }
